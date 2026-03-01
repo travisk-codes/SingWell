@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SingWell — Vocal Warmup Trainer</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>SingWell</h1>
+        <p class="subtitle">Vocal Warmup Trainer</p>
+      </header>
+
+      <!-- ─── Setup Screen ─────────────────────────────────────── -->
+      <div id="setup-screen" class="screen">
+        <h2>Select Your Voice Type</h2>
+        <p class="hint">
+          This determines the starting pitch range for each exercise.
+        </p>
+        <div class="voice-type-grid">
+          <button class="voice-type-btn" data-voice-type="soprano">
+            Soprano
+            <span class="voice-range">C4 and up</span>
+          </button>
+          <button class="voice-type-btn" data-voice-type="alto">
+            Alto
+            <span class="voice-range">G3 and up</span>
+          </button>
+          <button class="voice-type-btn" data-voice-type="tenor">
+            Tenor
+            <span class="voice-range">C3 and up</span>
+          </button>
+          <button class="voice-type-btn" data-voice-type="bass">
+            Bass
+            <span class="voice-range">A2 and up</span>
+          </button>
+        </div>
+        <button id="start-btn" class="primary-btn" disabled>
+          Start Warming Up
+        </button>
+      </div>
+
+      <!-- ─── Exercise List Screen ─────────────────────────────── -->
+      <div id="exercise-list-screen" class="screen hidden">
+        <h2>Choose an Exercise</h2>
+        <div id="exercise-cards" class="exercise-grid"></div>
+        <button id="back-to-setup-btn" class="secondary-btn">
+          Change Voice Type
+        </button>
+      </div>
+
+      <!-- ─── Active Exercise Screen ───────────────────────────── -->
+      <div id="active-exercise-screen" class="screen hidden">
+        <h2 id="exercise-title"></h2>
+        <p id="exercise-description-active" class="exercise-desc"></p>
+
+        <div class="live-display">
+          <div class="note-column">
+            <span class="column-label">Target</span>
+            <span id="target-note" class="note-value">&mdash;</span>
+          </div>
+          <div class="accuracy-column">
+            <div id="accuracy-indicator" class="accuracy-indicator">
+              Get ready...
+            </div>
+            <div id="cents-display" class="cents-display"></div>
+          </div>
+          <div class="note-column">
+            <span class="column-label">You</span>
+            <span id="detected-note" class="note-value">&mdash;</span>
+          </div>
+        </div>
+
+        <div class="volume-meter-container">
+          <div class="volume-meter-track">
+            <div id="volume-meter" class="volume-meter-fill"></div>
+          </div>
+          <span class="volume-label">mic level</span>
+        </div>
+
+        <div class="canvas-container">
+          <canvas id="pitch-canvas"></canvas>
+          <div id="countdown" class="countdown hidden">3</div>
+        </div>
+
+        <div class="progress-bar-container">
+          <div id="exercise-progress" class="progress-bar"></div>
+        </div>
+
+        <div class="exercise-controls">
+          <button id="play-reference-btn" class="secondary-btn">
+            Reference Tone
+          </button>
+          <button id="stop-exercise-btn" class="danger-btn">Stop</button>
+        </div>
+      </div>
+
+      <!-- ─── Results Screen ───────────────────────────────────── -->
+      <div id="results-screen" class="screen hidden">
+        <h2 id="results-exercise-name"></h2>
+
+        <div class="results-summary">
+          <div id="overall-score" class="overall-score">0%</div>
+          <div id="rating-label" class="rating-label"></div>
+          <p class="score-caption">on-pitch accuracy</p>
+        </div>
+
+        <div class="feedback-box">
+          <p id="feedback-text"></p>
+        </div>
+
+        <div id="note-breakdown-section" class="note-breakdown-section">
+          <h3>Note-by-Note Breakdown</h3>
+          <div id="note-breakdown" class="note-breakdown"></div>
+        </div>
+
+        <div class="results-actions">
+          <button id="retry-btn" class="primary-btn">Try Again</button>
+          <button id="back-to-list-btn" class="secondary-btn">
+            Back to Exercises
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

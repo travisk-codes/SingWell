@@ -1,0 +1,561 @@
+/* ═══════════════════════════════════════════════════════════════════
+   SingWell — Vocal Warmup Trainer
+   Dark theme with green accents.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Reset & base ────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  background: #0f0f1a;
+  color: #e0e0e0;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────── */
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+header h1 {
+  font-size: 2rem;
+  color: #4ade80;
+  letter-spacing: 0.04em;
+}
+
+.subtitle {
+  color: #888;
+  font-size: 0.95rem;
+}
+
+/* ─── Screens ─────────────────────────────────────────────────────── */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.screen h2 {
+  font-size: 1.35rem;
+  text-align: center;
+}
+
+.hint {
+  color: #888;
+  font-size: 0.9rem;
+  text-align: center;
+  max-width: 28rem;
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────── */
+
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.primary-btn {
+  background: #4ade80;
+  color: #0f0f1a;
+  font-weight: 600;
+  padding: 0.75rem 2rem;
+  font-size: 1.05rem;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #22c55e;
+}
+
+.secondary-btn {
+  background: #2a2a3e;
+  color: #ccc;
+  padding: 0.6rem 1.5rem;
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: #3a3a52;
+}
+
+.danger-btn {
+  background: #dc2626;
+  color: #fff;
+  padding: 0.6rem 1.5rem;
+  font-weight: 600;
+}
+
+.danger-btn:hover {
+  background: #ef4444;
+}
+
+/* ─── Voice type selection ────────────────────────────────────────── */
+
+.voice-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 20rem;
+}
+
+.voice-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: #1a1a2e;
+  color: #ccc;
+  padding: 1rem;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.voice-type-btn .voice-range {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #777;
+}
+
+.voice-type-btn:hover {
+  border-color: #4ade80;
+  background: #1f1f36;
+}
+
+.voice-type-btn.selected {
+  border-color: #4ade80;
+  background: #1a2e1a;
+  color: #4ade80;
+}
+
+.voice-type-btn.selected .voice-range {
+  color: #6ee7a0;
+}
+
+/* ─── Exercise cards ──────────────────────────────────────────────── */
+
+.exercise-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.exercise-card {
+  text-align: left;
+  background: #1a1a2e;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid #2a2a42;
+  border-radius: 10px;
+  width: 100%;
+}
+
+.exercise-card h3 {
+  font-size: 1.05rem;
+  color: #4ade80;
+  margin-bottom: 0.35rem;
+}
+
+.exercise-card p {
+  color: #999;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.exercise-card:hover {
+  border-color: #4ade80;
+  background: #1f1f36;
+}
+
+/* ─── Active exercise: live display ───────────────────────────────── */
+
+.exercise-desc {
+  color: #888;
+  font-size: 0.85rem;
+  text-align: center;
+  max-width: 36rem;
+}
+
+.live-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0.75rem 0;
+  width: 100%;
+}
+
+.note-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 5rem;
+}
+
+.column-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #777;
+}
+
+.note-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  font-family: 'Courier New', Courier, monospace;
+  color: #fff;
+}
+
+.accuracy-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 7rem;
+}
+
+.accuracy-indicator {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.3rem 1rem;
+  border-radius: 6px;
+  background: #2a2a3e;
+  color: #888;
+  text-align: center;
+}
+
+.accuracy-excellent {
+  background: #166534;
+  color: #4ade80;
+}
+
+.accuracy-good {
+  background: #365314;
+  color: #a3e635;
+}
+
+.accuracy-fair {
+  background: #713f12;
+  color: #facc15;
+}
+
+.accuracy-off {
+  background: #7f1d1d;
+  color: #f87171;
+}
+
+.cents-display {
+  font-size: 0.8rem;
+  color: #999;
+  font-family: monospace;
+  min-height: 1.2em;
+}
+
+/* ─── Volume meter ────────────────────────────────────────────────── */
+
+.volume-meter-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 24rem;
+}
+
+.volume-meter-track {
+  flex: 1;
+  height: 6px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.volume-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: #4ade80;
+  border-radius: 3px;
+  transition: width 0.05s linear;
+}
+
+.volume-label {
+  font-size: 0.7rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* ─── Canvas ──────────────────────────────────────────────────────── */
+
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #2a2a42;
+}
+
+#pitch-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Countdown overlay ───────────────────────────────────────────── */
+
+.countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 5rem;
+  font-weight: 800;
+  color: #4ade80;
+  text-shadow: 0 0 30px rgba(74, 222, 128, 0.4);
+  pointer-events: none;
+}
+
+/* ─── Progress bar ────────────────────────────────────────────────── */
+
+.progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #4ade80;
+  border-radius: 3px;
+  transition: width 0.1s linear;
+}
+
+/* ─── Exercise controls ───────────────────────────────────────────── */
+
+.exercise-controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* ─── Results screen ──────────────────────────────────────────────── */
+
+.results-summary {
+  text-align: center;
+  padding: 1.5rem 0 0.5rem;
+}
+
+.overall-score {
+  font-size: 3.5rem;
+  font-weight: 800;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.rating-excellent {
+  color: #4ade80;
+}
+
+.rating-good {
+  color: #a3e635;
+}
+
+.rating-fair {
+  color: #facc15;
+}
+
+.rating-needs_work {
+  color: #f87171;
+}
+
+.rating-insufficient_data {
+  color: #888;
+}
+
+.rating-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ccc;
+  margin-top: 0.25rem;
+}
+
+.score-caption {
+  font-size: 0.8rem;
+  color: #777;
+  margin-top: 0.15rem;
+}
+
+.feedback-box {
+  background: #1a1a2e;
+  border: 1px solid #2a2a42;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  width: 100%;
+  line-height: 1.6;
+}
+
+.feedback-box p {
+  color: #bbb;
+  font-size: 0.9rem;
+}
+
+/* ─── Note-by-note breakdown ──────────────────────────────────────── */
+
+.note-breakdown-section {
+  width: 100%;
+}
+
+.note-breakdown-section h3 {
+  font-size: 1rem;
+  color: #aaa;
+  margin-bottom: 0.75rem;
+}
+
+.note-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.note-result {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.note-result .note-label {
+  font-family: monospace;
+  font-weight: 600;
+  color: #ccc;
+  min-width: 3rem;
+  text-align: right;
+}
+
+.accuracy-bar {
+  flex: 1;
+  height: 10px;
+  background: #1a1a2e;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.accuracy-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.bar-excellent {
+  background: #4ade80;
+}
+
+.bar-good {
+  background: #a3e635;
+}
+
+.bar-fair {
+  background: #facc15;
+}
+
+.bar-off {
+  background: #f87171;
+}
+
+.note-result .note-accuracy {
+  min-width: 3rem;
+  text-align: right;
+  color: #999;
+  font-family: monospace;
+}
+
+.note-result .note-cents {
+  min-width: 3.5rem;
+  text-align: right;
+  color: #777;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+/* ─── Results actions ─────────────────────────────────────────────── */
+
+.results-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  padding-top: 0.5rem;
+}
+
+/* ─── Browser warning ─────────────────────────────────────────────── */
+
+.browser-warning {
+  background: #7f1d1d;
+  color: #fca5a5;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .live-display {
+    gap: 1rem;
+  }
+
+  .note-value {
+    font-size: 1.6rem;
+  }
+
+  .accuracy-column {
+    min-width: 5.5rem;
+  }
+
+  .overall-score {
+    font-size: 2.5rem;
+  }
+
+  .canvas-container {
+    height: 220px;
+  }
+}
