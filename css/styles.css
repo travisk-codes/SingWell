@@ -127,7 +127,7 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   width: 100%;
-  max-width: 20rem;
+  max-width: 24rem;
 }
 
 .voice-type-btn {
