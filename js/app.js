@@ -67,20 +67,25 @@ function showScreen(screen) {
 
 // ── Setup screen ─────────────────────────────────────────────────────
 
-const voiceTypeButtons = document.querySelectorAll('.voice-type-btn');
+const voiceTypeGrid = document.querySelector('.voice-type-grid');
 const startButton = document.getElementById('start-btn');
 
-voiceTypeButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    selectedVoiceType = button.dataset.voiceType;
-    selectedBaseMidiNote = VOICE_TYPE_BASE_NOTES[selectedVoiceType];
+voiceTypeGrid.addEventListener('click', (event) => {
+  const button = event.target.closest('.voice-type-btn');
+  if (!button) return;
 
-    voiceTypeButtons.forEach((b) =>
-      b.classList.toggle('selected', b === button)
-    );
+  selectedVoiceType = button.getAttribute('data-voice-type');
+  selectedBaseMidiNote = VOICE_TYPE_BASE_NOTES[selectedVoiceType];
 
-    startButton.disabled = false;
-  });
+  for (const btn of voiceTypeGrid.querySelectorAll('.voice-type-btn')) {
+    if (btn === button) {
+      btn.classList.add('selected');
+    } else {
+      btn.classList.remove('selected');
+    }
+  }
+
+  startButton.disabled = false;
 });
 
 startButton.addEventListener('click', async () => {
