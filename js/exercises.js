@@ -18,9 +18,11 @@ import { midiNoteToFrequency, midiNoteToName } from './pitch-detector.js';
  */
 export const VOICE_TYPE_BASE_NOTES = {
   soprano: 60, // C4
+  mezzo_soprano: 57, // A3
   alto: 55, // G3
   tenor: 48, // C3
-  bass: 45, // A2
+  baritone: 45, // A2
+  bass: 41, // F2
 };
 
 // ── Helper ───────────────────────────────────────────────────────────
