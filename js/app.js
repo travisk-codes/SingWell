@@ -13,10 +13,7 @@ import {
   midiNoteToFrequency,
 } from './pitch-detector.js';
 import { AudioEngine } from './audio-engine.js';
-import {
-  WARMUP_EXERCISES,
-  VOICE_TYPE_BASE_NOTES,
-} from './exercises.js';
+import { WARMUP_EXERCISES } from './exercises.js';
 import { PitchVisualizer } from './visualizer.js';
 import { analyzePerformance } from './feedback.js';
 
@@ -24,8 +21,9 @@ import { analyzePerformance } from './feedback.js';
 
 let audioEngine = null;
 let pitchVisualizer = null;
-let selectedVoiceType = null;
-let selectedBaseMidiNote = null;
+// selectedVoiceType and selectedBaseMidiNote are managed as window
+// globals by the inline script in index.html so that voice-type button
+// selection works even when ES modules fail to load (e.g. file:// protocol).
 
 let activeExerciseDefinition = null;
 let activeExerciseSteps = null;
@@ -66,22 +64,9 @@ function showScreen(screen) {
 }
 
 // ── Setup screen ─────────────────────────────────────────────────────
+// Voice-type button click handling is in the inline script in index.html.
 
-const voiceTypeButtons = document.querySelectorAll('.voice-type-btn');
 const startButton = document.getElementById('start-btn');
-
-voiceTypeButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    selectedVoiceType = button.dataset.voiceType;
-    selectedBaseMidiNote = VOICE_TYPE_BASE_NOTES[selectedVoiceType];
-
-    voiceTypeButtons.forEach((b) =>
-      b.classList.toggle('selected', b === button)
-    );
-
-    startButton.disabled = false;
-  });
-});
 
 startButton.addEventListener('click', async () => {
   startButton.disabled = true;
@@ -134,7 +119,7 @@ function populateExerciseList() {
 
 function launchExercise(exerciseDefinition) {
   activeExerciseDefinition = exerciseDefinition;
-  activeExerciseSteps = exerciseDefinition.createSteps(selectedBaseMidiNote);
+  activeExerciseSteps = exerciseDefinition.createSteps(window.selectedBaseMidiNote);
   collectedPitchSamples = [];
   previousStepIndex = -1;
 

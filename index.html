@@ -133,6 +133,44 @@
       </div>
     </div>
 
+    <script>
+      // Voice type selection — runs as a regular script (not a module)
+      // so it works regardless of how the page is served.
+      var VOICE_TYPE_BASE_NOTES = {
+        soprano: 60,
+        'mezzo-soprano': 57,
+        alto: 55,
+        tenor: 48,
+        baritone: 45,
+        bass: 41,
+      };
+
+      window.selectedVoiceType = null;
+      window.selectedBaseMidiNote = null;
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var buttons = document.querySelectorAll('.voice-type-btn');
+        var startBtn = document.getElementById('start-btn');
+
+        buttons.forEach(function (button) {
+          button.addEventListener('click', function () {
+            window.selectedVoiceType = button.dataset.voiceType;
+            window.selectedBaseMidiNote =
+              VOICE_TYPE_BASE_NOTES[window.selectedVoiceType];
+
+            buttons.forEach(function (b) {
+              if (b === button) {
+                b.classList.add('selected');
+              } else {
+                b.classList.remove('selected');
+              }
+            });
+
+            startBtn.disabled = false;
+          });
+        });
+      });
+    </script>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>
