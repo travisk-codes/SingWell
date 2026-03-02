@@ -11,6 +11,9 @@ const EXERCISE_COLORS = {
   'sustained-tone': '#d4af37',
   'five-tone-scale': '#a855f7',
   'major-arpeggio': '#38bdf8',
+  'solfege-ladder': '#818cf8',
+  'minor-scale': '#e879f9',
+  'interval-jumps': '#34d399',
   'octave-siren': '#f472b6',
   'triad-pattern': '#2dd4bf',
   'messa-di-voce': '#fb923c',
@@ -51,6 +54,12 @@ export function getExerciseColor(exerciseId) {
   return EXERCISE_COLORS[exerciseId] || '#888';
 }
 
+export function deleteHistoryEntry(dateStr) {
+  const history = getExerciseHistory();
+  const filtered = history.filter((e) => e.date !== dateStr);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+}
+
 /**
  * Render the performance-over-time line chart on a canvas.
  */
@@ -68,7 +77,7 @@ export function renderPerformanceGraph(canvas) {
   const plotHeight = height - marginTop - marginBottom;
 
   // Background
-  ctx.fillStyle = '#1a1a2e';
+  ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0, 0, width, height);
 
   if (history.length === 0) {
@@ -213,8 +222,10 @@ export function renderPerformanceLegend(container) {
 
 /**
  * Render the history list as DOM elements.
+ * @param {HTMLElement} container
+ * @param {{ onDelete?: () => void }} options
  */
-export function renderHistoryList(container) {
+export function renderHistoryList(container, { onDelete } = {}) {
   const history = getExerciseHistory();
   container.innerHTML = '';
 
@@ -254,6 +265,20 @@ export function renderHistoryList(container) {
       <span class="history-score ${ratingClass}">${Math.round(entry.score)}%</span>
       <span class="history-date">${dateStr} ${timeStr}</span>
     `;
+
+    if (onDelete) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'history-delete-btn';
+      deleteBtn.textContent = '\u00d7';
+      deleteBtn.title = 'Delete this session';
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteHistoryEntry(entry.date);
+        onDelete();
+      });
+      row.appendChild(deleteBtn);
+    }
+
     container.appendChild(row);
   }
 }

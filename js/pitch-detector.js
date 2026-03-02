@@ -15,6 +15,9 @@ const YIN_CONFIDENCE_THRESHOLD = 0.15;
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
+// Chromatic solfege syllables (movable Do, mixed enharmonic names)
+const SOLFEGE_SYLLABLES = ['Do', 'Di', 'Re', 'Me', 'Mi', 'Fa', 'Fi', 'Sol', 'Le', 'La', 'Te', 'Ti'];
+
 /**
  * Detect the fundamental frequency in a buffer of audio samples.
  *
@@ -148,4 +151,14 @@ export function midiNoteToName(midiNote) {
 export function getCentsFromTarget(detectedFrequency, targetMidiNote) {
   const targetFrequency = midiNoteToFrequency(targetMidiNote);
   return 1200 * Math.log2(detectedFrequency / targetFrequency);
+}
+
+/**
+ * Convert a MIDI note to its solfege syllable relative to a tonic.
+ * Uses movable Do — the interval between the note and the tonic
+ * determines the syllable.
+ */
+export function midiNoteToSolfege(midiNote, baseMidiNote) {
+  const interval = ((Math.round(midiNote) - Math.round(baseMidiNote)) % 12 + 12) % 12;
+  return SOLFEGE_SYLLABLES[interval];
 }

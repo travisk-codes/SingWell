@@ -11,6 +11,7 @@ import {
   frequencyToMidiNote,
   midiNoteToName,
   midiNoteToFrequency,
+  midiNoteToSolfege,
 } from './pitch-detector.js';
 import { AudioEngine } from './audio-engine.js';
 import {
@@ -121,6 +122,20 @@ document.getElementById('back-to-setup-btn').addEventListener('click', () => {
   showScreen(setupScreen);
 });
 
+// ── Header brand — click to return to exercise selection ─────────────
+
+document.querySelector('.header-brand').addEventListener('click', () => {
+  if (isExerciseRunning) {
+    isExerciseRunning = false;
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  }
+  if (audioEngine) {
+    showScreen(exerciseListScreen);
+  } else {
+    showScreen(setupScreen);
+  }
+});
+
 // ── Exercise list screen ─────────────────────────────────────────────
 
 function populateExerciseList() {
@@ -167,6 +182,8 @@ function launchExercise(exerciseDefinition) {
   // Reset live display
   document.getElementById('target-note').textContent = '—';
   document.getElementById('detected-note').textContent = '—';
+  document.getElementById('target-solfege').textContent = '';
+  document.getElementById('detected-solfege').textContent = '';
   document.getElementById('cents-display').textContent = '';
   document.getElementById('accuracy-indicator').textContent = 'Get ready...';
   document.getElementById('accuracy-indicator').className = 'accuracy-indicator';
@@ -295,6 +312,8 @@ function updateLiveDisplay(
 ) {
   const targetNoteElement = document.getElementById('target-note');
   const detectedNoteElement = document.getElementById('detected-note');
+  const targetSolfegeElement = document.getElementById('target-solfege');
+  const detectedSolfegeElement = document.getElementById('detected-solfege');
   const centsDisplayElement = document.getElementById('cents-display');
   const accuracyIndicatorElement = document.getElementById('accuracy-indicator');
   const progressBarElement = document.getElementById('exercise-progress');
@@ -305,10 +324,19 @@ function updateLiveDisplay(
     Math.round(currentStep.targetMidiNote)
   );
 
+  // Target solfege
+  targetSolfegeElement.textContent = currentStep.solfegeLabel || '';
+
   // Detected note and accuracy
   if (detectedMidiNote !== null) {
     detectedNoteElement.textContent = midiNoteToName(
       Math.round(detectedMidiNote)
+    );
+
+    // Detected solfege (relative to the exercise tonic)
+    detectedSolfegeElement.textContent = midiNoteToSolfege(
+      detectedMidiNote,
+      selectedBaseMidiNote
     );
 
     const centsOff = (detectedMidiNote - currentStep.targetMidiNote) * 100;
@@ -333,6 +361,7 @@ function updateLiveDisplay(
     }
   } else {
     detectedNoteElement.textContent = '\u2014';
+    detectedSolfegeElement.textContent = '';
     centsDisplayElement.textContent = '';
     accuracyIndicatorElement.className = 'accuracy-indicator';
     accuracyIndicatorElement.textContent = 'Listening...';
@@ -447,7 +476,12 @@ function displayResults(feedback, pitchGraphDataUrl) {
   } else {
     breakdownSection.classList.remove('hidden');
 
-    for (const stepResult of feedback.perStepResults) {
+    for (let i = 0; i < feedback.perStepResults.length; i++) {
+      const stepResult = feedback.perStepResults[i];
+      const solfegeLabel = activeExerciseSteps[i]
+        ? activeExerciseSteps[i].solfegeLabel || ''
+        : '';
+
       const row = document.createElement('div');
       row.className = 'note-result';
 
@@ -469,6 +503,7 @@ function displayResults(feedback, pitchGraphDataUrl) {
 
       row.innerHTML = `
         <span class="note-label">${stepResult.noteName}</span>
+        <span class="note-solfege">${solfegeLabel}</span>
         <div class="accuracy-bar">
           <div class="accuracy-fill ${barColorClass}"
                style="width: ${stepResult.wasDetected ? stepResult.onPitchPercent : 0}%">
@@ -528,8 +563,10 @@ function showProfile() {
   // Render legend
   renderPerformanceLegend(document.getElementById('performance-legend'));
 
-  // Render history list
-  renderHistoryList(document.getElementById('history-list'));
+  // Render history list with delete capability
+  renderHistoryList(document.getElementById('history-list'), {
+    onDelete: () => showProfile(),
+  });
 }
 
 document.getElementById('back-from-profile-btn').addEventListener('click', () => {

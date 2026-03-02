@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════
    SingWell — Vocal Warmup Trainer
-   Dark theme with gold accents.
+   Dark theme with gold accents on grey/black backgrounds.
    Accuracy indicators retain standard green/yellow/red coding.
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -17,7 +17,7 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
-  background: #0f0f1a;
+  background: #0e0e0e;
   color: #e0e0e0;
   line-height: 1.5;
   min-height: 100vh;
@@ -45,16 +45,24 @@ header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  cursor: pointer;
+}
+
+.header-brand:hover h1 {
+  opacity: 0.8;
 }
 
 .app-logo {
   flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 header h1 {
   font-size: 2rem;
   color: #d4af37;
   letter-spacing: 0.04em;
+  transition: opacity 0.15s;
 }
 
 .subtitle {
@@ -63,7 +71,7 @@ header h1 {
 }
 
 .profile-btn {
-  background: #2a2a3e;
+  background: #2a2a2a;
   color: #d4af37;
   padding: 0.5rem;
   border-radius: 8px;
@@ -73,7 +81,7 @@ header h1 {
 }
 
 .profile-btn:hover {
-  background: #3a3a52;
+  background: #383838;
 }
 
 /* ─── Screens ─────────────────────────────────────────────────────── */
@@ -119,7 +127,7 @@ button:disabled {
 
 .primary-btn {
   background: #d4af37;
-  color: #0f0f1a;
+  color: #0e0e0e;
   font-weight: 600;
   padding: 0.75rem 2rem;
   font-size: 1.05rem;
@@ -130,13 +138,13 @@ button:disabled {
 }
 
 .secondary-btn {
-  background: #2a2a3e;
+  background: #2a2a2a;
   color: #ccc;
   padding: 0.6rem 1.5rem;
 }
 
 .secondary-btn:hover:not(:disabled) {
-  background: #3a3a52;
+  background: #383838;
 }
 
 .danger-btn {
@@ -165,7 +173,7 @@ button:disabled {
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
-  background: #1a1a2e;
+  background: #1a1a1a;
   color: #ccc;
   padding: 1rem;
   border: 2px solid transparent;
@@ -182,7 +190,7 @@ button:disabled {
 
 .voice-type-btn:hover {
   border-color: #d4af37;
-  background: #1f1f36;
+  background: #222222;
 }
 
 .voice-type-btn.selected {
@@ -206,9 +214,9 @@ button:disabled {
 
 .exercise-card {
   text-align: left;
-  background: #1a1a2e;
+  background: #1a1a1a;
   padding: 1.1rem 1.25rem;
-  border: 1px solid #2a2a42;
+  border: 1px solid #2a2a2a;
   border-radius: 10px;
   width: 100%;
 }
@@ -227,7 +235,7 @@ button:disabled {
 
 .exercise-card:hover {
   border-color: #d4af37;
-  background: #1f1f36;
+  background: #222222;
 }
 
 /* ─── Active exercise: live display ───────────────────────────────── */
@@ -270,6 +278,13 @@ button:disabled {
   color: #fff;
 }
 
+.solfege-label {
+  font-size: 0.85rem;
+  color: #d4af37;
+  font-weight: 500;
+  min-height: 1.2em;
+}
+
 .accuracy-column {
   display: flex;
   flex-direction: column;
@@ -283,7 +298,7 @@ button:disabled {
   font-weight: 600;
   padding: 0.3rem 1rem;
   border-radius: 6px;
-  background: #2a2a3e;
+  background: #2a2a2a;
   color: #888;
   text-align: center;
 }
@@ -329,7 +344,7 @@ button:disabled {
 .volume-meter-track {
   flex: 1;
   height: 6px;
-  background: #1a1a2e;
+  background: #1a1a1a;
   border-radius: 3px;
   overflow: hidden;
 }
@@ -358,7 +373,7 @@ button:disabled {
   height: 300px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #2a2a42;
+  border: 1px solid #2a2a2a;
 }
 
 #pitch-canvas {
@@ -386,7 +401,7 @@ button:disabled {
 .progress-bar-container {
   width: 100%;
   height: 6px;
-  background: #1a1a2e;
+  background: #1a1a1a;
   border-radius: 3px;
   overflow: hidden;
 }
@@ -469,14 +484,14 @@ button:disabled {
 .results-pitch-graph {
   width: 100%;
   border-radius: 8px;
-  border: 1px solid #2a2a42;
+  border: 1px solid #2a2a2a;
 }
 
 /* ─── Feedback box ────────────────────────────────────────────────── */
 
 .feedback-box {
-  background: #1a1a2e;
-  border: 1px solid #2a2a42;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
   border-radius: 8px;
   padding: 1rem 1.25rem;
   width: 100%;
@@ -522,10 +537,17 @@ button:disabled {
   text-align: right;
 }
 
+.note-result .note-solfege {
+  color: #d4af37;
+  font-weight: 500;
+  min-width: 2.2rem;
+  font-size: 0.8rem;
+}
+
 .accuracy-bar {
   flex: 1;
   height: 10px;
-  background: #1a1a2e;
+  background: #1a1a1a;
   border-radius: 5px;
   overflow: hidden;
 }
@@ -594,7 +616,7 @@ button:disabled {
   width: 100%;
   height: 250px;
   border-radius: 8px;
-  border: 1px solid #2a2a42;
+  border: 1px solid #2a2a2a;
   display: block;
 }
 
@@ -638,7 +660,7 @@ button:disabled {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
-  background: #1a1a2e;
+  background: #1a1a1a;
   border-radius: 6px;
   font-size: 0.85rem;
 }
@@ -668,6 +690,21 @@ button:disabled {
   font-size: 0.8rem;
   min-width: 8rem;
   text-align: right;
+}
+
+.history-delete-btn {
+  background: none;
+  color: #555;
+  font-size: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.history-delete-btn:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
 }
 
 .history-empty {

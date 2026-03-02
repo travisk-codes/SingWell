@@ -23,7 +23,7 @@ const COLOR_EXCELLENT = '#4ade80';
 const COLOR_GOOD = '#a3e635';
 const COLOR_FAIR = '#facc15';
 const COLOR_OFF = '#f87171';
-const COLOR_BACKGROUND = '#1a1a2e';
+const COLOR_BACKGROUND = '#1a1a1a';
 const COLOR_GRID_LINE = 'rgba(255, 255, 255, 0.06)';
 const COLOR_TARGET_BAND_OUTER = 'rgba(212, 175, 55, 0.10)';
 const COLOR_TARGET_BAND_INNER = 'rgba(212, 175, 55, 0.22)';
@@ -172,10 +172,16 @@ export class PitchVisualizer {
       ctx.lineTo(xEnd, targetY);
       ctx.stroke();
 
-      // Note name label
-      ctx.fillStyle = COLOR_NOTE_LABEL;
-      ctx.font = '11px monospace';
-      ctx.fillText(step.noteName, xStart + 4, targetY - 8);
+      // Solfege / note label
+      if (step.solfegeLabel) {
+        ctx.fillStyle = 'rgba(212, 175, 55, 0.65)';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText(step.solfegeLabel, xStart + 4, targetY - 8);
+      } else {
+        ctx.fillStyle = COLOR_NOTE_LABEL;
+        ctx.font = '11px monospace';
+        ctx.fillText(step.noteName, xStart + 4, targetY - 8);
+      }
 
       timeOffsetMs += step.durationMs;
     }
