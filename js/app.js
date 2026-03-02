@@ -1,9 +1,9 @@
 /**
  * SingWell — main application controller.
  *
- * Manages the four screens (setup, exercise list, active exercise,
- * results), coordinates audio capture with pitch detection, drives
- * the exercise timer, and updates the UI on every animation frame.
+ * Manages the five screens (setup, exercise list, active exercise,
+ * results, profile), coordinates audio capture with pitch detection,
+ * drives the exercise timer, and updates the UI on every animation frame.
  */
 
 import {
@@ -19,6 +19,12 @@ import {
 } from './exercises.js';
 import { PitchVisualizer } from './visualizer.js';
 import { analyzePerformance } from './feedback.js';
+import {
+  saveExerciseResult,
+  renderPerformanceGraph,
+  renderPerformanceLegend,
+  renderHistoryList,
+} from './profile.js';
 
 // ── Application state ────────────────────────────────────────────────
 
@@ -34,6 +40,7 @@ let isExerciseRunning = false;
 let animationFrameId = null;
 let previousStepIndex = -1;
 let collectedPitchSamples = [];
+let profileReturnScreen = null;
 
 // Minimum and maximum detectable singing frequencies (Hz).
 // Below ~70 Hz is subharmonic rumble; above ~1100 Hz is past
@@ -48,12 +55,14 @@ const setupScreen = document.getElementById('setup-screen');
 const exerciseListScreen = document.getElementById('exercise-list-screen');
 const activeExerciseScreen = document.getElementById('active-exercise-screen');
 const resultsScreen = document.getElementById('results-screen');
+const profileScreen = document.getElementById('profile-screen');
 
 const allScreens = [
   setupScreen,
   exerciseListScreen,
   activeExerciseScreen,
   resultsScreen,
+  profileScreen,
 ];
 
 // ── Screen management ────────────────────────────────────────────────
@@ -170,6 +179,11 @@ function runCountIn() {
   const countdownOverlay = document.getElementById('countdown');
   countdownOverlay.classList.remove('hidden');
 
+  // Play the first target note as a reference tone during the countdown
+  // so the user can hear the pitch they need to match
+  const firstStep = activeExerciseSteps[0];
+  audioEngine.playReferenceTone(firstStep.targetFrequency, 3.5, 0.10);
+
   let beatsRemaining = 3;
   countdownOverlay.textContent = beatsRemaining;
   audioEngine.playCountInClick();
@@ -182,11 +196,6 @@ function runCountIn() {
     } else {
       countdownOverlay.classList.add('hidden');
       clearInterval(countdownInterval);
-
-      // Play the first target note as a reference
-      const firstStep = activeExerciseSteps[0];
-      audioEngine.playReferenceTone(firstStep.targetFrequency, 0.8, 0.12);
-
       beginExerciseLoop();
     }
   }, 1000);
@@ -366,19 +375,36 @@ function finishExercise() {
   isExerciseRunning = false;
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
+  // Do a final render with the playhead at the end so the graph is complete
+  pitchVisualizer.updatePlayheadPosition(pitchVisualizer.totalDurationMs);
+  pitchVisualizer.render();
+
+  // Capture the completed pitch graph as an image
+  const canvas = document.getElementById('pitch-canvas');
+  const pitchGraphDataUrl = canvas.toDataURL('image/png');
+
   const feedback = analyzePerformance(
     collectedPitchSamples,
     activeExerciseSteps,
     activeExerciseDefinition.isContinuous
   );
 
-  displayResults(feedback);
+  // Save to practice history
+  saveExerciseResult({
+    exerciseId: activeExerciseDefinition.id,
+    exerciseName: activeExerciseDefinition.name,
+    voiceType: selectedVoiceType,
+    score: feedback.overallOnPitchPercent,
+    rating: feedback.rating,
+  });
+
+  displayResults(feedback, pitchGraphDataUrl);
   showScreen(resultsScreen);
 }
 
 // ── Results screen ───────────────────────────────────────────────────
 
-function displayResults(feedback) {
+function displayResults(feedback, pitchGraphDataUrl) {
   document.getElementById('results-exercise-name').textContent =
     activeExerciseDefinition.name;
 
@@ -397,6 +423,16 @@ function displayResults(feedback) {
   };
   document.getElementById('rating-label').textContent =
     ratingLabels[feedback.rating] || '';
+
+  // Pitch graph snapshot
+  const graphSection = document.getElementById('results-graph-section');
+  const pitchGraphImg = document.getElementById('results-pitch-graph');
+  if (pitchGraphDataUrl) {
+    pitchGraphImg.src = pitchGraphDataUrl;
+    graphSection.classList.remove('hidden');
+  } else {
+    graphSection.classList.add('hidden');
+  }
 
   // Feedback text
   document.getElementById('feedback-text').textContent = feedback.feedbackText;
@@ -457,6 +493,54 @@ function displayResults(feedback) {
     { once: true }
   );
 }
+
+// ── Profile screen ───────────────────────────────────────────────────
+
+document.getElementById('profile-btn').addEventListener('click', () => {
+  // Remember where we were so we can go back
+  profileReturnScreen = null;
+  for (const s of allScreens) {
+    if (!s.classList.contains('hidden') && s !== profileScreen) {
+      profileReturnScreen = s;
+      break;
+    }
+  }
+
+  // Stop exercise if one is running
+  if (isExerciseRunning) {
+    isExerciseRunning = false;
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    profileReturnScreen = exerciseListScreen;
+  }
+
+  showProfile();
+});
+
+function showProfile() {
+  showScreen(profileScreen);
+
+  // Render performance graph
+  const canvas = document.getElementById('performance-canvas');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  renderPerformanceGraph(canvas);
+
+  // Render legend
+  renderPerformanceLegend(document.getElementById('performance-legend'));
+
+  // Render history list
+  renderHistoryList(document.getElementById('history-list'));
+}
+
+document.getElementById('back-from-profile-btn').addEventListener('click', () => {
+  if (profileReturnScreen) {
+    showScreen(profileReturnScreen);
+  } else if (selectedVoiceType) {
+    showScreen(exerciseListScreen);
+  } else {
+    showScreen(setupScreen);
+  }
+});
 
 // ── Browser compatibility check ──────────────────────────────────────
 

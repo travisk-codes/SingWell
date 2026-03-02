@@ -2,7 +2,7 @@
  * PitchVisualizer renders a scrolling pitch-vs-time display on a
  * <canvas> element. It shows:
  *
- *   - Target pitch regions as semi-transparent green bands
+ *   - Target pitch regions as semi-transparent gold bands
  *   - The singer's detected pitch as a colour-coded trail
  *   - A vertical playhead line at the current time position
  *   - Semitone grid lines for spatial reference
@@ -25,9 +25,9 @@ const COLOR_FAIR = '#facc15';
 const COLOR_OFF = '#f87171';
 const COLOR_BACKGROUND = '#1a1a2e';
 const COLOR_GRID_LINE = 'rgba(255, 255, 255, 0.06)';
-const COLOR_TARGET_BAND_OUTER = 'rgba(100, 200, 100, 0.08)';
-const COLOR_TARGET_BAND_INNER = 'rgba(100, 200, 100, 0.18)';
-const COLOR_TARGET_LINE = 'rgba(100, 200, 100, 0.6)';
+const COLOR_TARGET_BAND_OUTER = 'rgba(212, 175, 55, 0.10)';
+const COLOR_TARGET_BAND_INNER = 'rgba(212, 175, 55, 0.22)';
+const COLOR_TARGET_LINE = 'rgba(212, 175, 55, 0.65)';
 const COLOR_NOTE_LABEL = 'rgba(255, 255, 255, 0.65)';
 const COLOR_PLAYHEAD = 'rgba(255, 255, 255, 0.45)';
 
