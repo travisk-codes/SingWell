@@ -216,6 +216,32 @@ function runCountIn() {
   countdownOverlay.textContent = beatsRemaining;
   audioEngine.playCountInClick();
 
+  // Preview loop: render the pitch graph and show the user's current pitch
+  // so they can find the right note before the exercise starts
+  let previewFrameId = null;
+  function previewLoop() {
+    pitchVisualizer.render();
+
+    const timeDomainData = audioEngine.getTimeDomainData();
+    const pitchResult = detectPitch(timeDomainData, audioEngine.getSampleRate());
+    if (
+      pitchResult &&
+      pitchResult.confidence >= MINIMUM_PITCH_CONFIDENCE &&
+      pitchResult.frequency >= MINIMUM_SINGING_FREQUENCY_HZ &&
+      pitchResult.frequency <= MAXIMUM_SINGING_FREQUENCY_HZ
+    ) {
+      const midiNote = frequencyToMidiNote(pitchResult.frequency);
+      drawPitchPreviewLine(midiNote);
+      document.getElementById('detected-note').textContent =
+        midiNoteToName(Math.round(midiNote));
+      document.getElementById('detected-solfege').textContent =
+        midiNoteToSolfege(midiNote, selectedBaseMidiNote);
+    }
+
+    previewFrameId = requestAnimationFrame(previewLoop);
+  }
+  previewFrameId = requestAnimationFrame(previewLoop);
+
   const countdownInterval = setInterval(() => {
     beatsRemaining--;
     if (beatsRemaining > 0) {
@@ -224,9 +250,29 @@ function runCountIn() {
     } else {
       countdownOverlay.classList.add('hidden');
       clearInterval(countdownInterval);
+      if (previewFrameId) cancelAnimationFrame(previewFrameId);
       beginExerciseLoop();
     }
   }, 1000);
+}
+
+function drawPitchPreviewLine(midiNote) {
+  const canvas = document.getElementById('pitch-canvas');
+  const ctx = canvas.getContext('2d');
+  const y = pitchVisualizer.midiNoteToYPosition(midiNote);
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(canvas.width, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+  ctx.font = 'bold 12px monospace';
+  ctx.fillText(midiNoteToName(Math.round(midiNote)), 6, y - 6);
 }
 
 function beginExerciseLoop() {
@@ -618,8 +664,8 @@ function displayResults(feedback, pitchGraphDataUrl) {
         || (solfegeLabel ? getExpectedVowel(solfegeLabel) : null);
       const vs = vowelStats[i];
 
-      const row = document.createElement('div');
-      row.className = 'note-result';
+      const group = document.createElement('div');
+      group.className = 'note-group';
 
       const accuracyText = stepResult.wasDetected
         ? `${Math.round(stepResult.onPitchPercent)}%`
@@ -637,23 +683,9 @@ function displayResults(feedback, pitchGraphDataUrl) {
       else if (stepResult.onPitchPercent >= 60) barColorClass = 'bar-good';
       else if (stepResult.onPitchPercent >= 40) barColorClass = 'bar-fair';
 
-      // Vowel columns (detected vowel + vowel accuracy %)
-      let vowelHtml = '';
-      let vowelPctHtml = '';
-      if (vs && vs.hasData && expectedVowel) {
-        const vowelMatchClass =
-          vs.dominantVowel === expectedVowel ? 'vowel-match' : 'vowel-mismatch';
-        vowelHtml = `<span class="note-vowel ${vowelMatchClass}">${vs.dominantVowel}</span>`;
-
-        let vowelPctClass = 'vowel-off';
-        if (vs.matchPercent >= 70) vowelPctClass = 'vowel-match';
-        else if (vs.matchPercent >= 40) vowelPctClass = 'vowel-mismatch';
-        vowelPctHtml = `<span class="note-vowel-pct ${vowelPctClass}">${vs.matchPercent}%</span>`;
-      } else {
-        vowelHtml = '<span class="note-vowel"></span>';
-        vowelPctHtml = '<span class="note-vowel-pct"></span>';
-      }
-
+      // Pitch row
+      const row = document.createElement('div');
+      row.className = 'note-result';
       row.innerHTML = `
         <span class="note-label">${stepResult.noteName}</span>
         <span class="note-solfege">${solfegeLabel}</span>
@@ -664,10 +696,36 @@ function displayResults(feedback, pitchGraphDataUrl) {
         </div>
         <span class="note-accuracy">${accuracyText}</span>
         <span class="note-cents">${centsText}</span>
-        ${vowelHtml}
-        ${vowelPctHtml}
       `;
-      breakdownContainer.appendChild(row);
+      group.appendChild(row);
+
+      // Vowel accuracy bar (shown below pitch bar when vowel data exists)
+      if (vs && vs.hasData && expectedVowel) {
+        let vowelBarClass = 'bar-off';
+        if (vs.matchPercent >= 70) vowelBarClass = 'bar-excellent';
+        else if (vs.matchPercent >= 40) vowelBarClass = 'bar-fair';
+
+        const vowelLabel = vs.dominantVowel === expectedVowel
+          ? expectedVowel
+          : `${vs.dominantVowel}\u2192${expectedVowel}`;
+
+        const vowelRow = document.createElement('div');
+        vowelRow.className = 'vowel-result';
+        vowelRow.innerHTML = `
+          <span class="vowel-spacer"></span>
+          <span class="vowel-tag">vowel</span>
+          <div class="accuracy-bar vowel-bar-size">
+            <div class="accuracy-fill ${vowelBarClass}"
+                 style="width: ${vs.matchPercent}%">
+            </div>
+          </div>
+          <span class="note-accuracy">${vs.matchPercent}%</span>
+          <span class="vowel-info">${vowelLabel}</span>
+        `;
+        group.appendChild(vowelRow);
+      }
+
+      breakdownContainer.appendChild(group);
     }
   }
 
@@ -720,8 +778,15 @@ function showProfile() {
     btn.classList.toggle('active', btn.dataset.timescale === currentTimescale)
   );
 
-  // Render legend
-  renderPerformanceLegend(document.getElementById('performance-legend'));
+  // Render legend (clickable — toggles lines on/off)
+  renderPerformanceLegend(document.getElementById('performance-legend'), {
+    onToggle: () => {
+      const c = document.getElementById('performance-canvas');
+      c.width = c.offsetWidth;
+      c.height = c.offsetHeight;
+      renderPerformanceGraph(c, { timescale: currentTimescale });
+    },
+  });
 
   // Render running averages
   renderRunningAverages(document.getElementById('running-averages'));

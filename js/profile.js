@@ -53,6 +53,8 @@ export function getExerciseHistory() {
   }
 }
 
+const hiddenExercises = new Set();
+
 export function getExerciseColor(exerciseId) {
   return EXERCISE_COLORS[exerciseId] || '#888';
 }
@@ -152,6 +154,7 @@ export function renderPerformanceGraph(canvas, { timescale = 'all' } = {}) {
 
   // Draw lines for each exercise type
   for (const [exerciseId, entries] of Object.entries(grouped)) {
+    if (hiddenExercises.has(exerciseId)) continue;
     const color = EXERCISE_COLORS[exerciseId] || '#888';
     const sorted = [...entries].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
@@ -225,7 +228,7 @@ export function renderPerformanceGraph(canvas, { timescale = 'all' } = {}) {
 /**
  * Render the legend for the performance graph as HTML.
  */
-export function renderPerformanceLegend(container) {
+export function renderPerformanceLegend(container, { onToggle } = {}) {
   const history = getExerciseHistory();
   container.innerHTML = '';
 
@@ -236,11 +239,24 @@ export function renderPerformanceLegend(container) {
 
     const item = document.createElement('div');
     item.className = 'legend-item';
+    if (hiddenExercises.has(entry.exerciseId)) {
+      item.classList.add('legend-hidden');
+    }
     const color = EXERCISE_COLORS[entry.exerciseId] || '#888';
     item.innerHTML = `
       <span class="legend-color" style="background: ${color}"></span>
       <span class="legend-label">${entry.exerciseName}</span>
     `;
+    const exerciseId = entry.exerciseId;
+    item.addEventListener('click', () => {
+      if (hiddenExercises.has(exerciseId)) {
+        hiddenExercises.delete(exerciseId);
+      } else {
+        hiddenExercises.add(exerciseId);
+      }
+      item.classList.toggle('legend-hidden');
+      if (onToggle) onToggle();
+    });
     container.appendChild(item);
   }
 }
@@ -382,7 +398,11 @@ export function renderRunningAverages(container) {
         const avg = Math.round(
           matching.reduce((a, b) => a + b.score, 0) / matching.length
         );
-        html += `<span class="avg-cell">${avg}%</span>`;
+        let avgClass = 'avg-needs-work';
+        if (avg >= 80) avgClass = 'avg-excellent';
+        else if (avg >= 60) avgClass = 'avg-good';
+        else if (avg >= 40) avgClass = 'avg-fair';
+        html += `<span class="avg-cell ${avgClass}">${avg}%</span>`;
       } else {
         html += `<span class="avg-cell avg-no-data">\u2014</span>`;
       }
