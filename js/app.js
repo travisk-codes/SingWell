@@ -25,11 +25,13 @@ import {
   renderPerformanceGraph,
   renderPerformanceLegend,
   renderHistoryList,
+  renderRunningAverages,
 } from './profile.js';
 import {
   analyzeFormants,
   checkVowelForSolfege,
   getExpectedVowel,
+  resetFormantSmoothing,
 } from './formant-analyzer.js';
 
 // ── Application state ────────────────────────────────────────────────
@@ -47,6 +49,7 @@ let animationFrameId = null;
 let previousStepIndex = -1;
 let collectedPitchSamples = [];
 let profileReturnScreen = null;
+let currentTimescale = 'all';
 
 // Minimum and maximum detectable singing frequencies (Hz).
 // Below ~70 Hz is subharmonic rumble; above ~1100 Hz is past
@@ -196,6 +199,7 @@ function launchExercise(exerciseDefinition) {
   document.getElementById('vowel-indicator').textContent = '';
   document.getElementById('vowel-indicator').className = 'vowel-indicator';
 
+  resetFormantSmoothing();
   runCountIn();
 }
 
@@ -263,7 +267,11 @@ function exerciseLoop() {
   // ── Formant / vowel detection ─────────────────────────────────
   let formantResult = null;
   if (detectedMidiNote !== null) {
-    formantResult = analyzeFormants(timeDomainData, audioEngine.getSampleRate());
+    formantResult = analyzeFormants(
+      timeDomainData,
+      audioEngine.getSampleRate(),
+      pitchResult ? pitchResult.frequency : 0
+    );
   }
 
   // ── Find the current exercise step ───────────────────────────
@@ -297,8 +305,14 @@ function exerciseLoop() {
 
   // ── Check vowel against expected solfege ──────────────────────
   let vowelCheck = null;
-  if (formantResult && currentStep.solfegeLabel && !activeExerciseDefinition.isContinuous) {
-    vowelCheck = checkVowelForSolfege(formantResult.vowel, currentStep.solfegeLabel);
+  const stepExpectedVowel = currentStep.expectedVowel ||
+    (currentStep.solfegeLabel ? getExpectedVowel(currentStep.solfegeLabel) : null);
+  if (formantResult && stepExpectedVowel && !activeExerciseDefinition.isContinuous) {
+    vowelCheck = {
+      matches: formantResult.vowel === stepExpectedVowel,
+      expectedVowel: stepExpectedVowel,
+      possibleSyllables: [],
+    };
   }
 
   // ── Record sample ────────────────────────────────────────────
@@ -351,8 +365,13 @@ function updateLiveDisplay(
     Math.round(currentStep.targetMidiNote)
   );
 
-  // Target solfege
-  targetSolfegeElement.textContent = currentStep.solfegeLabel || '';
+  // Target solfege (show expected vowel when explicitly set)
+  if (currentStep.expectedVowel) {
+    targetSolfegeElement.textContent =
+      `${currentStep.solfegeLabel || ''} [${currentStep.expectedVowel}]`;
+  } else {
+    targetSolfegeElement.textContent = currentStep.solfegeLabel || '';
+  }
 
   // Detected note and accuracy
   if (detectedMidiNote !== null) {
@@ -595,7 +614,8 @@ function displayResults(feedback, pitchGraphDataUrl) {
       const solfegeLabel = activeExerciseSteps[i]
         ? activeExerciseSteps[i].solfegeLabel || ''
         : '';
-      const expectedVowel = solfegeLabel ? getExpectedVowel(solfegeLabel) : null;
+      const expectedVowel = (activeExerciseSteps[i] && activeExerciseSteps[i].expectedVowel)
+        || (solfegeLabel ? getExpectedVowel(solfegeLabel) : null);
       const vs = vowelStats[i];
 
       const row = document.createElement('div');
@@ -681,20 +701,42 @@ document.getElementById('profile-btn').addEventListener('click', () => {
 function showProfile() {
   showScreen(profileScreen);
 
-  // Render performance graph
+  // Render performance graph with current timescale
   const canvas = document.getElementById('performance-canvas');
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
-  renderPerformanceGraph(canvas);
+  renderPerformanceGraph(canvas, { timescale: currentTimescale });
+
+  // Highlight the active timescale button
+  document.querySelectorAll('.timescale-btn').forEach((btn) =>
+    btn.classList.toggle('active', btn.dataset.timescale === currentTimescale)
+  );
 
   // Render legend
   renderPerformanceLegend(document.getElementById('performance-legend'));
+
+  // Render running averages
+  renderRunningAverages(document.getElementById('running-averages'));
 
   // Render history list with delete capability
   renderHistoryList(document.getElementById('history-list'), {
     onDelete: () => showProfile(),
   });
 }
+
+// Timescale filter buttons
+document.querySelectorAll('.timescale-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    currentTimescale = btn.dataset.timescale;
+    document.querySelectorAll('.timescale-btn').forEach((b) =>
+      b.classList.toggle('active', b === btn)
+    );
+    const canvas = document.getElementById('performance-canvas');
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    renderPerformanceGraph(canvas, { timescale: currentTimescale });
+  });
+});
 
 document.getElementById('back-from-profile-btn').addEventListener('click', () => {
   if (profileReturnScreen) {

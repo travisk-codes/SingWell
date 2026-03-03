@@ -17,6 +17,9 @@ const EXERCISE_COLORS = {
   'octave-siren': '#f472b6',
   'triad-pattern': '#2dd4bf',
   'messa-di-voce': '#fb923c',
+  'vowel-clarity': '#f59e0b',
+  'vowel-slides': '#06b6d4',
+  'resonance-placement': '#ec4899',
 };
 
 export function saveExerciseResult({
@@ -63,8 +66,30 @@ export function deleteHistoryEntry(dateStr) {
 /**
  * Render the performance-over-time line chart on a canvas.
  */
-export function renderPerformanceGraph(canvas) {
-  const history = getExerciseHistory();
+export function renderPerformanceGraph(canvas, { timescale = 'all' } = {}) {
+  let history = getExerciseHistory();
+
+  if (timescale !== 'all') {
+    const now = Date.now();
+    let cutoff;
+    switch (timescale) {
+      case '1h':
+        cutoff = now - 3600000;
+        break;
+      case 'today': {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        cutoff = d.getTime();
+        break;
+      }
+      case 'week':
+        cutoff = now - 7 * 86400000;
+        break;
+      default:
+        cutoff = 0;
+    }
+    history = history.filter((e) => new Date(e.date).getTime() >= cutoff);
+  }
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
@@ -280,5 +305,45 @@ export function renderHistoryList(container, { onDelete } = {}) {
     }
 
     container.appendChild(row);
+  }
+}
+
+/**
+ * Render running averages per exercise as HTML cards.
+ */
+export function renderRunningAverages(container) {
+  const history = getExerciseHistory();
+  container.innerHTML = '';
+
+  if (history.length === 0) {
+    container.innerHTML =
+      '<p class="history-empty">No data yet</p>';
+    return;
+  }
+
+  const grouped = {};
+  for (const entry of history) {
+    if (!grouped[entry.exerciseId]) {
+      grouped[entry.exerciseId] = {
+        name: entry.exerciseName,
+        scores: [],
+        color: EXERCISE_COLORS[entry.exerciseId] || '#888',
+      };
+    }
+    grouped[entry.exerciseId].scores.push(entry.score);
+  }
+
+  for (const [, data] of Object.entries(grouped)) {
+    const avg =
+      data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+
+    const card = document.createElement('div');
+    card.className = 'average-card';
+    card.innerHTML = `
+      <span class="average-exercise-name" style="color: ${data.color}">${data.name}</span>
+      <span class="average-score">${Math.round(avg)}%</span>
+      <span class="average-sessions">${data.scores.length} session${data.scores.length !== 1 ? 's' : ''}</span>
+    `;
+    container.appendChild(card);
   }
 }

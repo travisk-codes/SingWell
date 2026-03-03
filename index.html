@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SingWell — Vocal Warmup Trainer</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><ellipse cx='22' cy='46' rx='13' ry='9' transform='rotate(-25 22 46)' fill='%23d4af37'/><rect x='33' y='10' width='3.5' height='38' fill='%23d4af37'/><path d='M36.5 10 C48 14 48 26 36.5 24' fill='%23d4af37'/></svg>" />
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
@@ -178,8 +178,19 @@
 
         <div class="profile-graph-container">
           <h3>Performance Over Time</h3>
+          <div class="timescale-buttons">
+            <button class="timescale-btn active" data-timescale="all">All</button>
+            <button class="timescale-btn" data-timescale="week">Week</button>
+            <button class="timescale-btn" data-timescale="today">Today</button>
+            <button class="timescale-btn" data-timescale="1h">1 Hour</button>
+          </div>
           <canvas id="performance-canvas"></canvas>
           <div id="performance-legend" class="performance-legend"></div>
+        </div>
+
+        <div class="averages-container">
+          <h3>Running Averages</h3>
+          <div id="running-averages" class="running-averages"></div>
         </div>
 
         <div class="history-list-container">

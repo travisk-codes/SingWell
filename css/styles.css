@@ -643,10 +643,37 @@ button:disabled {
 }
 
 .profile-graph-container h3,
-.history-list-container h3 {
+.history-list-container h3,
+.averages-container h3 {
   font-size: 1rem;
   color: #aaa;
   margin-bottom: 0.75rem;
+}
+
+/* ─── Timescale filter ────────────────────────────────────────────── */
+
+.timescale-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.timescale-btn {
+  background: #2a2a2a;
+  color: #999;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+.timescale-btn:hover {
+  background: #383838;
+}
+
+.timescale-btn.active {
+  background: #d4af37;
+  color: #0e0e0e;
+  font-weight: 600;
 }
 
 #performance-canvas {
@@ -677,6 +704,44 @@ button:disabled {
   height: 10px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+/* ─── Running averages ────────────────────────────────────────────── */
+
+.averages-container {
+  width: 100%;
+}
+
+.running-averages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.average-card {
+  background: #1a1a1a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.average-exercise-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.average-score {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: 'Courier New', Courier, monospace;
+  color: #e0e0e0;
+}
+
+.average-sessions {
+  font-size: 0.7rem;
+  color: #666;
 }
 
 .history-list-container {

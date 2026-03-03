@@ -36,7 +36,21 @@ function intervalToSolfege(semitoneInterval) {
   return SOLFEGE_SYLLABLES[((semitoneInterval % 12) + 12) % 12];
 }
 
-// ── Helper ───────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function buildVowelSteps(baseMidiNote, specs) {
+  return specs.map(({ interval, durationMs, expectedVowel }) => {
+    const midiNote = baseMidiNote + interval;
+    return {
+      targetMidiNote: midiNote,
+      targetFrequency: midiNoteToFrequency(midiNote),
+      noteName: midiNoteToName(midiNote),
+      solfegeLabel: intervalToSolfege(interval),
+      expectedVowel,
+      durationMs,
+    };
+  });
+}
 
 function buildDiscreteSteps(baseMidiNote, semitoneIntervals, noteDurationMs) {
   return semitoneIntervals.map((interval) => {
@@ -203,6 +217,76 @@ export const WARMUP_EXERCISES = [
     createSteps(baseMidiNote) {
       const intervals = [0, 4, 7, 4, 0];
       return buildDiscreteSteps(baseMidiNote, intervals, 1500);
+    },
+  },
+
+  {
+    id: 'vowel-clarity',
+    name: 'Vowel Clarity',
+    description:
+      'Hold one comfortable pitch and cycle through four singing vowels: ' +
+      'ah, eh, ee, oh. The app will check your vowel production — ' +
+      'focus on a clear, distinct vowel shape for each one.',
+    isContinuous: false,
+    evaluationMetrics: ['pitch_accuracy'],
+
+    createSteps(baseMidiNote) {
+      const pitch = baseMidiNote + 4; // major 3rd — same as sustained tone
+      return buildVowelSteps(baseMidiNote, [
+        { interval: 4, durationMs: 3000, expectedVowel: 'ah' },
+        { interval: 4, durationMs: 3000, expectedVowel: 'eh' },
+        { interval: 4, durationMs: 3000, expectedVowel: 'ee' },
+        { interval: 4, durationMs: 3000, expectedVowel: 'oh' },
+      ]);
+    },
+  },
+
+  {
+    id: 'vowel-slides',
+    name: 'Vowel Slides',
+    description:
+      'Sing each note twice — once on "ee" (bright) and once on "ah" (dark). ' +
+      'Ascends Do-Re-Mi. The challenge is switching vowels while keeping ' +
+      'your pitch locked.',
+    isContinuous: false,
+    evaluationMetrics: ['pitch_accuracy'],
+
+    createSteps(baseMidiNote) {
+      return buildVowelSteps(baseMidiNote, [
+        { interval: 0, durationMs: 2000, expectedVowel: 'ee' },
+        { interval: 0, durationMs: 2000, expectedVowel: 'ah' },
+        { interval: 2, durationMs: 2000, expectedVowel: 'ee' },
+        { interval: 2, durationMs: 2000, expectedVowel: 'ah' },
+        { interval: 4, durationMs: 2000, expectedVowel: 'ee' },
+        { interval: 4, durationMs: 2000, expectedVowel: 'ah' },
+      ]);
+    },
+  },
+
+  {
+    id: 'resonance-placement',
+    name: 'Resonance Placement',
+    description:
+      'Five-tone scale sung entirely on "ee" — the classic "nee-nee-nee" ' +
+      'placement exercise. Keep the vowel bright and forward as you ascend ' +
+      'and descend.',
+    isContinuous: false,
+    evaluationMetrics: ['pitch_accuracy'],
+
+    createSteps(baseMidiNote) {
+      //                Do  Re  Mi  Fa  Sol Fa  Mi  Re  Do
+      const intervals = [0, 2, 4, 5, 7, 5, 4, 2, 0];
+      return intervals.map((interval) => {
+        const midiNote = baseMidiNote + interval;
+        return {
+          targetMidiNote: midiNote,
+          targetFrequency: midiNoteToFrequency(midiNote),
+          noteName: midiNoteToName(midiNote),
+          solfegeLabel: intervalToSolfege(interval),
+          expectedVowel: 'ee',
+          durationMs: 1800,
+        };
+      });
     },
   },
 
