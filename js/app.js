@@ -699,29 +699,42 @@ function displayResults(feedback, pitchGraphDataUrl) {
       `;
       group.appendChild(row);
 
-      // Vowel accuracy bar (shown below pitch bar when vowel data exists)
-      if (vs && vs.hasData && expectedVowel) {
-        let vowelBarClass = 'bar-off';
-        if (vs.matchPercent >= 70) vowelBarClass = 'bar-excellent';
-        else if (vs.matchPercent >= 40) vowelBarClass = 'bar-fair';
-
-        const vowelLabel = vs.dominantVowel === expectedVowel
-          ? expectedVowel
-          : `${vs.dominantVowel}\u2192${expectedVowel}`;
-
+      // Vowel accuracy bar — always shown when an expected vowel exists
+      if (expectedVowel) {
         const vowelRow = document.createElement('div');
         vowelRow.className = 'vowel-result';
-        vowelRow.innerHTML = `
-          <span class="vowel-spacer"></span>
-          <span class="vowel-tag">vowel</span>
-          <div class="accuracy-bar vowel-bar-size">
-            <div class="accuracy-fill ${vowelBarClass}"
-                 style="width: ${vs.matchPercent}%">
+
+        if (vs && vs.hasData) {
+          let vowelBarClass = 'bar-off';
+          if (vs.matchPercent >= 70) vowelBarClass = 'bar-excellent';
+          else if (vs.matchPercent >= 40) vowelBarClass = 'bar-fair';
+
+          const vowelLabel = vs.dominantVowel === expectedVowel
+            ? expectedVowel
+            : `${vs.dominantVowel}\u2192${expectedVowel}`;
+
+          vowelRow.innerHTML = `
+            <span class="vowel-spacer"></span>
+            <span class="vowel-tag">vowel</span>
+            <div class="accuracy-bar vowel-bar-size">
+              <div class="accuracy-fill ${vowelBarClass}"
+                   style="width: ${vs.matchPercent}%">
+              </div>
             </div>
-          </div>
-          <span class="note-accuracy">${vs.matchPercent}%</span>
-          <span class="vowel-info">${vowelLabel}</span>
-        `;
+            <span class="note-accuracy">${vs.matchPercent}%</span>
+            <span class="vowel-info">${vowelLabel}</span>
+          `;
+        } else {
+          vowelRow.innerHTML = `
+            <span class="vowel-spacer"></span>
+            <span class="vowel-tag">vowel</span>
+            <div class="accuracy-bar vowel-bar-size">
+              <div class="accuracy-fill bar-off" style="width: 0%"></div>
+            </div>
+            <span class="note-accuracy vowel-no-data">No data</span>
+            <span class="vowel-info">${expectedVowel}</span>
+          `;
+        }
         group.appendChild(vowelRow);
       }
 

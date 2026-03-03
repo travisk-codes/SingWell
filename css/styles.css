@@ -639,6 +639,11 @@ button:disabled {
   height: 6px;
 }
 
+.vowel-no-data {
+  color: #555;
+  font-style: italic;
+}
+
 .vowel-info {
   color: #888;
   font-size: 0.75rem;
