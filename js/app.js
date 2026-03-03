@@ -26,6 +26,11 @@ import {
   renderPerformanceLegend,
   renderHistoryList,
 } from './profile.js';
+import {
+  analyzeFormants,
+  checkVowelForSolfege,
+  getExpectedVowel,
+} from './formant-analyzer.js';
 
 // ── Application state ────────────────────────────────────────────────
 
@@ -188,6 +193,8 @@ function launchExercise(exerciseDefinition) {
   document.getElementById('accuracy-indicator').textContent = 'Get ready...';
   document.getElementById('accuracy-indicator').className = 'accuracy-indicator';
   document.getElementById('exercise-progress').style.width = '0%';
+  document.getElementById('vowel-indicator').textContent = '';
+  document.getElementById('vowel-indicator').className = 'vowel-indicator';
 
   runCountIn();
 }
@@ -253,6 +260,12 @@ function exerciseLoop() {
     detectedMidiNote = frequencyToMidiNote(pitchResult.frequency);
   }
 
+  // ── Formant / vowel detection ─────────────────────────────────
+  let formantResult = null;
+  if (detectedMidiNote !== null) {
+    formantResult = analyzeFormants(timeDomainData, audioEngine.getSampleRate());
+  }
+
   // ── Find the current exercise step ───────────────────────────
   let accumulatedTimeMs = 0;
   let currentStepIndex = 0;
@@ -282,6 +295,12 @@ function exerciseLoop() {
     previousStepIndex = currentStepIndex;
   }
 
+  // ── Check vowel against expected solfege ──────────────────────
+  let vowelCheck = null;
+  if (formantResult && currentStep.solfegeLabel && !activeExerciseDefinition.isContinuous) {
+    vowelCheck = checkVowelForSolfege(formantResult.vowel, currentStep.solfegeLabel);
+  }
+
   // ── Record sample ────────────────────────────────────────────
   const rmsVolume = audioEngine.computeRmsVolume();
 
@@ -290,6 +309,8 @@ function exerciseLoop() {
       timeMs: elapsedMs,
       midiNote: detectedMidiNote,
       rmsVolume,
+      detectedVowel: formantResult ? formantResult.vowel : null,
+      vowelMatches: vowelCheck ? vowelCheck.matches : null,
     });
   }
 
@@ -298,7 +319,10 @@ function exerciseLoop() {
   pitchVisualizer.render();
 
   // ── Update live readout ──────────────────────────────────────
-  updateLiveDisplay(currentStep, detectedMidiNote, rmsVolume, elapsedMs, totalDurationMs);
+  updateLiveDisplay(
+    currentStep, detectedMidiNote, rmsVolume,
+    elapsedMs, totalDurationMs, formantResult, vowelCheck
+  );
 
   animationFrameId = requestAnimationFrame(exerciseLoop);
 }
@@ -308,7 +332,9 @@ function updateLiveDisplay(
   detectedMidiNote,
   rmsVolume,
   elapsedMs,
-  totalDurationMs
+  totalDurationMs,
+  formantResult,
+  vowelCheck
 ) {
   const targetNoteElement = document.getElementById('target-note');
   const detectedNoteElement = document.getElementById('detected-note');
@@ -318,6 +344,7 @@ function updateLiveDisplay(
   const accuracyIndicatorElement = document.getElementById('accuracy-indicator');
   const progressBarElement = document.getElementById('exercise-progress');
   const volumeMeterElement = document.getElementById('volume-meter');
+  const vowelIndicatorElement = document.getElementById('vowel-indicator');
 
   // Target note
   targetNoteElement.textContent = midiNoteToName(
@@ -365,6 +392,25 @@ function updateLiveDisplay(
     centsDisplayElement.textContent = '';
     accuracyIndicatorElement.className = 'accuracy-indicator';
     accuracyIndicatorElement.textContent = 'Listening...';
+  }
+
+  // Vowel indicator (skip for continuous exercises)
+  if (formantResult && vowelCheck) {
+    if (vowelCheck.matches) {
+      vowelIndicatorElement.textContent = `vowel: ${formantResult.vowel}`;
+      vowelIndicatorElement.className = 'vowel-indicator vowel-match';
+    } else {
+      vowelIndicatorElement.textContent =
+        `vowel: ${formantResult.vowel} \u2192 ${vowelCheck.expectedVowel}`;
+      vowelIndicatorElement.className = 'vowel-indicator vowel-mismatch';
+    }
+  } else if (formantResult && activeExerciseDefinition.isContinuous) {
+    // For continuous exercises, just show the detected vowel without judgement
+    vowelIndicatorElement.textContent = `vowel: ${formantResult.vowel}`;
+    vowelIndicatorElement.className = 'vowel-indicator';
+  } else {
+    vowelIndicatorElement.textContent = '';
+    vowelIndicatorElement.className = 'vowel-indicator';
   }
 
   // Progress bar
@@ -431,6 +477,50 @@ function finishExercise() {
   showScreen(resultsScreen);
 }
 
+// ── Vowel accuracy helpers ───────────────────────────────────────────
+
+function computeVowelStatsPerStep(samples, steps) {
+  const stats = [];
+  let timeOffset = 0;
+
+  for (const step of steps) {
+    const stepEnd = timeOffset + step.durationMs;
+    const stepSamples = samples.filter(
+      (s) => s.timeMs >= timeOffset && s.timeMs < stepEnd && s.detectedVowel
+    );
+
+    if (stepSamples.length > 0) {
+      const matches = stepSamples.filter((s) => s.vowelMatches).length;
+
+      // Find the most common detected vowel
+      const counts = {};
+      for (const s of stepSamples) {
+        counts[s.detectedVowel] = (counts[s.detectedVowel] || 0) + 1;
+      }
+      let dominantVowel = null;
+      let maxCount = 0;
+      for (const [vowel, count] of Object.entries(counts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantVowel = vowel;
+        }
+      }
+
+      stats.push({
+        dominantVowel,
+        matchPercent: Math.round((matches / stepSamples.length) * 100),
+        hasData: true,
+      });
+    } else {
+      stats.push({ dominantVowel: null, matchPercent: 0, hasData: false });
+    }
+
+    timeOffset = stepEnd;
+  }
+
+  return stats;
+}
+
 // ── Results screen ───────────────────────────────────────────────────
 
 function displayResults(feedback, pitchGraphDataUrl) {
@@ -452,6 +542,24 @@ function displayResults(feedback, pitchGraphDataUrl) {
   };
   document.getElementById('rating-label').textContent =
     ratingLabels[feedback.rating] || '';
+
+  // Overall vowel accuracy (for non-continuous exercises)
+  const vowelScoreElement = document.getElementById('vowel-score');
+  if (!activeExerciseDefinition.isContinuous) {
+    const vowelSamples = collectedPitchSamples.filter(
+      (s) => s.detectedVowel !== null && s.vowelMatches !== null
+    );
+    if (vowelSamples.length > 0) {
+      const vowelMatches = vowelSamples.filter((s) => s.vowelMatches).length;
+      const vowelPct = Math.round((vowelMatches / vowelSamples.length) * 100);
+      vowelScoreElement.textContent = `${vowelPct}% vowel accuracy`;
+      vowelScoreElement.classList.remove('hidden');
+    } else {
+      vowelScoreElement.classList.add('hidden');
+    }
+  } else {
+    vowelScoreElement.classList.add('hidden');
+  }
 
   // Pitch graph snapshot
   const graphSection = document.getElementById('results-graph-section');
@@ -476,11 +584,19 @@ function displayResults(feedback, pitchGraphDataUrl) {
   } else {
     breakdownSection.classList.remove('hidden');
 
+    // Compute per-step vowel stats
+    const vowelStats = computeVowelStatsPerStep(
+      collectedPitchSamples,
+      activeExerciseSteps
+    );
+
     for (let i = 0; i < feedback.perStepResults.length; i++) {
       const stepResult = feedback.perStepResults[i];
       const solfegeLabel = activeExerciseSteps[i]
         ? activeExerciseSteps[i].solfegeLabel || ''
         : '';
+      const expectedVowel = solfegeLabel ? getExpectedVowel(solfegeLabel) : null;
+      const vs = vowelStats[i];
 
       const row = document.createElement('div');
       row.className = 'note-result';
@@ -501,9 +617,20 @@ function displayResults(feedback, pitchGraphDataUrl) {
       else if (stepResult.onPitchPercent >= 60) barColorClass = 'bar-good';
       else if (stepResult.onPitchPercent >= 40) barColorClass = 'bar-fair';
 
+      // Vowel column
+      let vowelHtml = '';
+      if (vs && vs.hasData && expectedVowel) {
+        const vowelMatchClass =
+          vs.dominantVowel === expectedVowel ? 'vowel-match' : 'vowel-mismatch';
+        vowelHtml = `<span class="note-vowel ${vowelMatchClass}">${vs.dominantVowel}</span>`;
+      } else {
+        vowelHtml = '<span class="note-vowel"></span>';
+      }
+
       row.innerHTML = `
         <span class="note-label">${stepResult.noteName}</span>
         <span class="note-solfege">${solfegeLabel}</span>
+        ${vowelHtml}
         <div class="accuracy-bar">
           <div class="accuracy-fill ${barColorClass}"
                style="width: ${stepResult.wasDetected ? stepResult.onPitchPercent : 0}%">

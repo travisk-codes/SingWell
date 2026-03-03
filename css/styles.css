@@ -331,6 +331,21 @@ button:disabled {
   min-height: 1.2em;
 }
 
+.vowel-indicator {
+  font-size: 0.8rem;
+  color: #999;
+  min-height: 1.2em;
+  font-weight: 500;
+}
+
+.vowel-indicator.vowel-match {
+  color: #4ade80;
+}
+
+.vowel-indicator.vowel-mismatch {
+  color: #facc15;
+}
+
 /* ─── Volume meter ────────────────────────────────────────────────── */
 
 .volume-meter-container {
@@ -469,6 +484,13 @@ button:disabled {
   margin-top: 0.15rem;
 }
 
+.vowel-score {
+  font-size: 0.95rem;
+  color: #d4af37;
+  margin-top: 0.35rem;
+  font-weight: 500;
+}
+
 /* ─── Results pitch graph ─────────────────────────────────────────── */
 
 .results-graph-section {
@@ -588,6 +610,21 @@ button:disabled {
   color: #777;
   font-family: monospace;
   font-size: 0.8rem;
+}
+
+.note-result .note-vowel {
+  min-width: 2rem;
+  font-size: 0.8rem;
+  color: #777;
+  text-align: center;
+}
+
+.note-result .note-vowel.vowel-match {
+  color: #4ade80;
+}
+
+.note-result .note-vowel.vowel-mismatch {
+  color: #facc15;
 }
 
 /* ─── Results actions ─────────────────────────────────────────────── */
