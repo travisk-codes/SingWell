@@ -225,13 +225,12 @@ export const WARMUP_EXERCISES = [
     name: 'Vowel Clarity',
     description:
       'Hold one comfortable pitch and cycle through four singing vowels: ' +
-      'ah, eh, ee, oh. The app will check your vowel production — ' +
+      'ah, eh, ee, oh. The app checks your vowel production — ' +
       'focus on a clear, distinct vowel shape for each one.',
     isContinuous: false,
     evaluationMetrics: ['pitch_accuracy'],
 
     createSteps(baseMidiNote) {
-      const pitch = baseMidiNote + 4; // major 3rd — same as sustained tone
       return buildVowelSteps(baseMidiNote, [
         { interval: 4, durationMs: 3000, expectedVowel: 'ah' },
         { interval: 4, durationMs: 3000, expectedVowel: 'eh' },
@@ -274,7 +273,6 @@ export const WARMUP_EXERCISES = [
     evaluationMetrics: ['pitch_accuracy'],
 
     createSteps(baseMidiNote) {
-      //                Do  Re  Mi  Fa  Sol Fa  Mi  Re  Do
       const intervals = [0, 2, 4, 5, 7, 5, 4, 2, 0];
       return intervals.map((interval) => {
         const midiNote = baseMidiNote + interval;

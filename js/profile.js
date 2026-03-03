@@ -309,8 +309,16 @@ export function renderHistoryList(container, { onDelete } = {}) {
 }
 
 /**
- * Render running averages per exercise as HTML cards.
+ * Render running averages per exercise across multiple timescales.
  */
+const AVERAGES_TIMESCALES = [
+  { key: '1h', label: '1h', ms: 3600000 },
+  { key: 'today', label: 'Today', today: true },
+  { key: 'week', label: 'Week', ms: 7 * 86400000 },
+  { key: 'month', label: 'Month', ms: 30 * 86400000 },
+  { key: 'year', label: 'Year', ms: 365 * 86400000 },
+  { key: 'all', label: 'All', ms: Infinity },
+];
 export function renderRunningAverages(container) {
   const history = getExerciseHistory();
   container.innerHTML = '';
@@ -321,29 +329,68 @@ export function renderRunningAverages(container) {
     return;
   }
 
-  const grouped = {};
+  // Collect unique exercises in first-seen order
+  const exerciseIds = [];
+  const exerciseNames = {};
   for (const entry of history) {
-    if (!grouped[entry.exerciseId]) {
-      grouped[entry.exerciseId] = {
-        name: entry.exerciseName,
-        scores: [],
-        color: EXERCISE_COLORS[entry.exerciseId] || '#888',
-      };
+    if (!exerciseNames[entry.exerciseId]) {
+      exerciseIds.push(entry.exerciseId);
+      exerciseNames[entry.exerciseId] = entry.exerciseName;
     }
-    grouped[entry.exerciseId].scores.push(entry.score);
   }
 
-  for (const [, data] of Object.entries(grouped)) {
-    const avg =
-      data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+  const now = Date.now();
 
-    const card = document.createElement('div');
-    card.className = 'average-card';
-    card.innerHTML = `
-      <span class="average-exercise-name" style="color: ${data.color}">${data.name}</span>
-      <span class="average-score">${Math.round(avg)}%</span>
-      <span class="average-sessions">${data.scores.length} session${data.scores.length !== 1 ? 's' : ''}</span>
-    `;
-    container.appendChild(card);
+  const table = document.createElement('div');
+  table.className = 'averages-table';
+
+  // Header row
+  const header = document.createElement('div');
+  header.className = 'averages-row averages-header';
+  header.innerHTML =
+    '<span class="avg-exercise"></span>' +
+    AVERAGES_TIMESCALES.map(
+      (t) => `<span class="avg-cell">${t.label}</span>`
+    ).join('');
+  table.appendChild(header);
+
+  // Data rows
+  for (const exId of exerciseIds) {
+    const color = EXERCISE_COLORS[exId] || '#888';
+    const row = document.createElement('div');
+    row.className = 'averages-row';
+
+    let html = `<span class="avg-exercise" style="color: ${color}">${exerciseNames[exId]}</span>`;
+
+    for (const ts of AVERAGES_TIMESCALES) {
+      let cutoff;
+      if (ts.key === 'all') {
+        cutoff = 0;
+      } else if (ts.today) {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        cutoff = d.getTime();
+      } else {
+        cutoff = now - ts.ms;
+      }
+
+      const matching = history.filter(
+        (e) => e.exerciseId === exId && new Date(e.date).getTime() >= cutoff
+      );
+
+      if (matching.length > 0) {
+        const avg = Math.round(
+          matching.reduce((a, b) => a + b.score, 0) / matching.length
+        );
+        html += `<span class="avg-cell">${avg}%</span>`;
+      } else {
+        html += `<span class="avg-cell avg-no-data">\u2014</span>`;
+      }
+    }
+
+    row.innerHTML = html;
+    table.appendChild(row);
   }
+
+  container.appendChild(table);
 }

@@ -637,20 +637,26 @@ function displayResults(feedback, pitchGraphDataUrl) {
       else if (stepResult.onPitchPercent >= 60) barColorClass = 'bar-good';
       else if (stepResult.onPitchPercent >= 40) barColorClass = 'bar-fair';
 
-      // Vowel column
+      // Vowel columns (detected vowel + vowel accuracy %)
       let vowelHtml = '';
+      let vowelPctHtml = '';
       if (vs && vs.hasData && expectedVowel) {
         const vowelMatchClass =
           vs.dominantVowel === expectedVowel ? 'vowel-match' : 'vowel-mismatch';
         vowelHtml = `<span class="note-vowel ${vowelMatchClass}">${vs.dominantVowel}</span>`;
+
+        let vowelPctClass = 'vowel-off';
+        if (vs.matchPercent >= 70) vowelPctClass = 'vowel-match';
+        else if (vs.matchPercent >= 40) vowelPctClass = 'vowel-mismatch';
+        vowelPctHtml = `<span class="note-vowel-pct ${vowelPctClass}">${vs.matchPercent}%</span>`;
       } else {
         vowelHtml = '<span class="note-vowel"></span>';
+        vowelPctHtml = '<span class="note-vowel-pct"></span>';
       }
 
       row.innerHTML = `
         <span class="note-label">${stepResult.noteName}</span>
         <span class="note-solfege">${solfegeLabel}</span>
-        ${vowelHtml}
         <div class="accuracy-bar">
           <div class="accuracy-fill ${barColorClass}"
                style="width: ${stepResult.wasDetected ? stepResult.onPitchPercent : 0}%">
@@ -658,6 +664,8 @@ function displayResults(feedback, pitchGraphDataUrl) {
         </div>
         <span class="note-accuracy">${accuracyText}</span>
         <span class="note-cents">${centsText}</span>
+        ${vowelHtml}
+        ${vowelPctHtml}
       `;
       breakdownContainer.appendChild(row);
     }

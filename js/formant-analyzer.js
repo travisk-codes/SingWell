@@ -26,28 +26,14 @@
 
 // ── Configuration ───────────────────────────────────────────────────
 
-/** LPC model order. At ~11 kHz effective rate, 12 gives ~6 pole pairs. */
 const LPC_ORDER = 12;
-
-/** High-pass pre-emphasis to flatten the spectral tilt of speech. */
 const PRE_EMPHASIS = 0.97;
-
-/** Number of points to evaluate in the LPC spectral envelope. */
 const SPECTRUM_POINTS = 512;
-
-/** Window size (samples) to extract from the raw buffer before downsampling. */
 const ANALYSIS_WINDOW = 2048;
-
-/** Decimation factor. 44100 / 4 ≈ 11025 Hz — ideal for formant work. */
 const DECIMATION_FACTOR = 4;
-
-/** Exponential smoothing weight for new formant estimates (0–1). */
 const SMOOTHING_ALPHA = 0.4;
 
 // ── Vowel classification centres ────────────────────────────────────
-//
-// Average formant frequencies (Hz) across male/female singing voices.
-// Classification uses the nearest centre in normalised (F1, F2) space.
 
 const VOWEL_CENTERS = [
   { label: 'ee', f1: 310, f2: 2300 },
@@ -81,10 +67,6 @@ let smoothedF2 = null;
 
 // ── Signal processing primitives ────────────────────────────────────
 
-/**
- * Block-average decimation.  Acts as a crude low-pass anti-aliasing
- * filter (first null at fs/factor) followed by downsampling.
- */
 function downsample(signal, factor) {
   const len = Math.floor(signal.length / factor);
   const out = new Float32Array(len);
@@ -132,9 +114,6 @@ function computeAutocorrelation(signal, maxLag) {
 }
 
 // ── Levinson-Durbin recursion ───────────────────────────────────────
-//
-// Solves the Toeplitz system from the autocorrelation to produce
-// LPC coefficients that model the vocal-tract filter.
 
 function levinsonDurbin(autocorr, order) {
   const a = new Float64Array(order + 1);
@@ -167,9 +146,6 @@ function levinsonDurbin(autocorr, order) {
 }
 
 // ── LPC spectrum evaluation ─────────────────────────────────────────
-//
-// Evaluates |1 / A(e^jw)|² — the transfer function magnitude of
-// the all-pole vocal-tract model.  Peaks are the formants.
 
 function evaluateLpcSpectrum(coefficients, numPoints) {
   const spectrum = new Float64Array(numPoints);
@@ -196,13 +172,11 @@ function findFormantPeaks(spectrum, sampleRate) {
   const binHz = (sampleRate / 2) / spectrum.length;
   const peaks = [];
 
-  // Search between 150 Hz and 3500 Hz
   const minBin = Math.max(1, Math.floor(150 / binHz));
   const maxBin = Math.min(spectrum.length - 1, Math.ceil(3500 / binHz));
 
   for (let i = minBin; i < maxBin; i++) {
     if (spectrum[i] > spectrum[i - 1] && spectrum[i] > spectrum[i + 1]) {
-      // Parabolic interpolation for sub-bin accuracy
       const lnA = Math.log(spectrum[i - 1] + 1e-12);
       const lnB = Math.log(spectrum[i] + 1e-12);
       const lnC = Math.log(spectrum[i + 1] + 1e-12);
@@ -222,8 +196,7 @@ function findFormantPeaks(spectrum, sampleRate) {
 
 /**
  * Remove peaks that fall within ±12% of the fundamental or its
- * first few harmonics, which would otherwise be mis-identified
- * as formants.
+ * first few harmonics.
  */
 function filterHarmonicPeaks(peaks, fundamentalHz) {
   if (!fundamentalHz || fundamentalHz <= 0) return peaks;
@@ -240,18 +213,14 @@ function filterHarmonicPeaks(peaks, fundamentalHz) {
 }
 
 // ── Vowel classification ────────────────────────────────────────────
-//
-// Nearest-centre classifier using both F1 (open–close) and F2
-// (front–back), normalised by their typical ranges so that neither
-// axis dominates.
 
 function classifyVowel(f1, f2) {
   let bestLabel = 'ah';
   let bestDist = Infinity;
 
   for (const v of VOWEL_CENTERS) {
-    const d1 = (f1 - v.f1) / 300;   // F1 range ~300–900
-    const d2 = (f2 - v.f2) / 800;   // F2 range ~700–2800
+    const d1 = (f1 - v.f1) / 300;
+    const d2 = (f2 - v.f2) / 800;
     const dist = d1 * d1 + d2 * d2;
     if (dist < bestDist) {
       bestDist = dist;
@@ -277,42 +246,31 @@ function smoothFormants(f1, f2) {
 
 // ── Public API ──────────────────────────────────────────────────────
 
-/**
- * Analyze formants from a time-domain audio buffer.
- *
- * @param {Float32Array} timeDomainData - Raw audio samples (4096+ preferred)
- * @param {number} sampleRate - e.g. 44100
- * @param {number} [fundamentalHz] - Detected pitch (Hz) to filter harmonics
- * @returns {{ f1: number, f2: number, vowel: string } | null}
- */
 export function analyzeFormants(timeDomainData, sampleRate, fundamentalHz) {
-  // Extract a centred window
   const winSize = Math.min(ANALYSIS_WINDOW, timeDomainData.length);
   const start = Math.floor((timeDomainData.length - winSize) / 2);
   const window = timeDomainData.slice(start, start + winSize);
 
-  // Reject silence
   let energy = 0;
   for (let i = 0; i < window.length; i++) {
     energy += window[i] * window[i];
   }
   if (energy / window.length < 1e-6) return null;
 
-  // ── Downsample → pre-emphasize → Hamming ──────────────────────
+  // Downsample → pre-emphasize → Hamming
   const decimated = downsample(window, DECIMATION_FACTOR);
   const effectiveSampleRate = sampleRate / DECIMATION_FACTOR;
   const processed = applyHammingWindow(preEmphasize(decimated));
 
-  // ── LPC analysis ──────────────────────────────────────────────
+  // LPC analysis
   const autocorr = computeAutocorrelation(processed, LPC_ORDER);
   const lpcCoeffs = levinsonDurbin(autocorr, LPC_ORDER);
   if (!lpcCoeffs) return null;
 
-  // ── Spectral envelope → formant peaks ─────────────────────────
+  // Spectral envelope → formant peaks
   const spectrum = evaluateLpcSpectrum(lpcCoeffs, SPECTRUM_POINTS);
   let peaks = findFormantPeaks(spectrum, effectiveSampleRate);
 
-  // Filter out peaks that coincide with fundamental / harmonics
   if (fundamentalHz) {
     peaks = filterHarmonicPeaks(peaks, fundamentalHz);
   }
@@ -322,12 +280,10 @@ export function analyzeFormants(timeDomainData, sampleRate, fundamentalHz) {
   const rawF1 = peaks[0].frequency;
   const rawF2 = peaks[1].frequency;
 
-  // Sanity checks — reject implausible formant values
   if (rawF1 < 150 || rawF1 > 1100) return null;
   if (rawF2 < 500 || rawF2 > 3200) return null;
   if (rawF2 - rawF1 < 200) return null;
 
-  // Apply temporal smoothing
   const { f1, f2 } = smoothFormants(rawF1, rawF2);
 
   return {
@@ -337,13 +293,6 @@ export function analyzeFormants(timeDomainData, sampleRate, fundamentalHz) {
   };
 }
 
-/**
- * Check if a detected vowel matches the expected solfege syllable.
- *
- * @param {string} detectedVowel - 'ee' | 'eh' | 'ah' | 'oh'
- * @param {string} expectedSolfege - e.g. 'Do', 'Mi', 'La'
- * @returns {{ matches: boolean, expectedVowel: string, possibleSyllables: string[] }}
- */
 export function checkVowelForSolfege(detectedVowel, expectedSolfege) {
   const expectedVowel = SOLFEGE_TO_VOWEL[expectedSolfege] || null;
   const matches = detectedVowel === expectedVowel;
@@ -355,17 +304,10 @@ export function checkVowelForSolfege(detectedVowel, expectedSolfege) {
   };
 }
 
-/**
- * Get the expected vowel group for a solfege syllable.
- */
 export function getExpectedVowel(solfege) {
   return SOLFEGE_TO_VOWEL[solfege] || null;
 }
 
-/**
- * Reset the temporal smoothing state.
- * Call when starting a new exercise so stale state doesn't bleed in.
- */
 export function resetFormantSmoothing() {
   smoothedF1 = null;
   smoothedF2 = null;
