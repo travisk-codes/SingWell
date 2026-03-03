@@ -194,24 +194,6 @@ function findFormantPeaks(spectrum, sampleRate) {
   return peaks;
 }
 
-/**
- * Remove peaks that fall within ±12% of the fundamental or its
- * first few harmonics.
- */
-function filterHarmonicPeaks(peaks, fundamentalHz) {
-  if (!fundamentalHz || fundamentalHz <= 0) return peaks;
-
-  return peaks.filter((peak) => {
-    for (let h = 1; h <= 4; h++) {
-      const harmonicHz = fundamentalHz * h;
-      if (Math.abs(peak.frequency - harmonicHz) < harmonicHz * 0.12) {
-        return false;
-      }
-    }
-    return true;
-  });
-}
-
 // ── Vowel classification ────────────────────────────────────────────
 
 function classifyVowel(f1, f2) {
@@ -246,7 +228,7 @@ function smoothFormants(f1, f2) {
 
 // ── Public API ──────────────────────────────────────────────────────
 
-export function analyzeFormants(timeDomainData, sampleRate, fundamentalHz) {
+export function analyzeFormants(timeDomainData, sampleRate) {
   const winSize = Math.min(ANALYSIS_WINDOW, timeDomainData.length);
   const start = Math.floor((timeDomainData.length - winSize) / 2);
   const window = timeDomainData.slice(start, start + winSize);
@@ -269,22 +251,31 @@ export function analyzeFormants(timeDomainData, sampleRate, fundamentalHz) {
 
   // Spectral envelope → formant peaks
   const spectrum = evaluateLpcSpectrum(lpcCoeffs, SPECTRUM_POINTS);
-  let peaks = findFormantPeaks(spectrum, effectiveSampleRate);
+  const peaks = findFormantPeaks(spectrum, effectiveSampleRate);
 
-  if (fundamentalHz) {
-    peaks = filterHarmonicPeaks(peaks, fundamentalHz);
+  // Pick F1: strongest peak in 150–1100 Hz
+  let f1Peak = null;
+  for (const p of peaks) {
+    if (p.frequency >= 150 && p.frequency <= 1100) {
+      if (!f1Peak || p.amplitude > f1Peak.amplitude) {
+        f1Peak = p;
+      }
+    }
   }
+  if (!f1Peak) return null;
 
-  if (peaks.length < 2) return null;
+  // Pick F2: strongest peak above F1+200, up to 3200 Hz
+  let f2Peak = null;
+  for (const p of peaks) {
+    if (p.frequency >= f1Peak.frequency + 200 && p.frequency <= 3200) {
+      if (!f2Peak || p.amplitude > f2Peak.amplitude) {
+        f2Peak = p;
+      }
+    }
+  }
+  if (!f2Peak) return null;
 
-  const rawF1 = peaks[0].frequency;
-  const rawF2 = peaks[1].frequency;
-
-  if (rawF1 < 150 || rawF1 > 1100) return null;
-  if (rawF2 < 500 || rawF2 > 3200) return null;
-  if (rawF2 - rawF1 < 200) return null;
-
-  const { f1, f2 } = smoothFormants(rawF1, rawF2);
+  const { f1, f2 } = smoothFormants(f1Peak.frequency, f2Peak.frequency);
 
   return {
     f1,

@@ -315,8 +315,7 @@ function exerciseLoop() {
   if (detectedMidiNote !== null) {
     formantResult = analyzeFormants(
       timeDomainData,
-      audioEngine.getSampleRate(),
-      pitchResult ? pitchResult.frequency : 0
+      audioEngine.getSampleRate()
     );
   }
 
@@ -344,6 +343,7 @@ function exerciseLoop() {
     !activeExerciseDefinition.isContinuous
   ) {
     audioEngine.playReferenceTone(currentStep.targetFrequency, 0.5, 0.08);
+    resetFormantSmoothing();
     previousStepIndex = currentStepIndex;
   } else if (activeExerciseDefinition.isContinuous) {
     previousStepIndex = currentStepIndex;
