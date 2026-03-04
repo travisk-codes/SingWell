@@ -1,9 +1,12 @@
 /**
  * Formant analysis for vowel detection in singing.
  *
- * Uses Linear Predictive Coding (LPC) with signal downsampling to
- * accurately estimate vocal-tract formants (F1, F2) from the
- * microphone's time-domain buffer.
+ * Uses cepstral spectral-envelope estimation with signal downsampling
+ * to accurately estimate vocal-tract formants (F1, F2) from the
+ * microphone's time-domain buffer.  Cepstral liftering cleanly
+ * separates the vocal-tract shape (formants) from the excitation
+ * source (harmonics), which LPC cannot do when harmonics are strong
+ * (e.g. studio condenser microphones).
  *
  * Signal processing pipeline:
  *   1. Extract a centered window from the raw buffer
@@ -13,8 +16,9 @@
  *      101-tap Hamming-windowed sinc FIR low-pass filter
  *   4. Pre-emphasize (first-order high-pass, coeff 0.97)
  *   5. Apply Hamming window
- *   6. Autocorrelation → Levinson-Durbin (order 14) → LPC coeffs
- *   7. Evaluate LPC spectral envelope and find peaks
+ *   6. FFT → log magnitude → IFFT → cepstrum → lifter (keep 28
+ *      low-quefrency coefficients) → FFT → exp → smooth envelope
+ *   7. Find peaks in the cepstral envelope
  *   8. Select F1 (lowest peak 150–1100 Hz) and F2 (vowel-guided:
  *      best (F1,F2) match to known vowel centres, up to 2800 Hz)
  *   9. 5-frame median filter to reject outlier estimates
@@ -29,14 +33,13 @@
 
 // ── Configuration ───────────────────────────────────────────────────
 
-const LPC_ORDER = 14;
 const PRE_EMPHASIS = 0.97;
-const SPECTRUM_POINTS = 512;
 const ANALYSIS_WINDOW = 4096;
 const DECIMATION_FACTOR = 4;
 const HP_CUTOFF_HZ = 120;
 const AA_TAPS = 101;
 const MEDIAN_WINDOW = 5;
+const CEPSTRAL_LIFTER = 28;
 
 // Pre-compute anti-aliasing FIR coefficients (Hamming-windowed sinc,
 // cutoff at π/DECIMATION_FACTOR so we reject everything above the
@@ -229,6 +232,94 @@ function evaluateLpcSpectrum(coefficients, numPoints) {
   return spectrum;
 }
 
+// ── FFT / Cepstral envelope ─────────────────────────────────────────
+// Radix-2 FFT replaces LPC for spectral-envelope estimation.
+// Cepstral liftering cleanly separates the vocal-tract shape
+// (formants) from the excitation source (harmonics), which LPC
+// fundamentally cannot do when harmonics are strong.
+
+function fft(re, im) {
+  const N = re.length;
+  for (let i = 1, j = 0; i < N; i++) {
+    let bit = N >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= N; len *= 2) {
+    const ang = -2 * Math.PI / len;
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i = 0; i < N; i += len) {
+      let curRe = 1, curIm = 0;
+      const half = len / 2;
+      for (let j = 0; j < half; j++) {
+        const a = i + j, b = a + half;
+        const tRe = re[b] * curRe - im[b] * curIm;
+        const tIm = re[b] * curIm + im[b] * curRe;
+        re[b] = re[a] - tRe; im[b] = im[a] - tIm;
+        re[a] += tRe; im[a] += tIm;
+        const tmp = curRe * wRe - curIm * wIm;
+        curIm = curRe * wIm + curIm * wRe;
+        curRe = tmp;
+      }
+    }
+  }
+}
+
+function ifft(re, im) {
+  const N = re.length;
+  for (let i = 0; i < N; i++) im[i] = -im[i];
+  fft(re, im);
+  for (let i = 0; i < N; i++) { re[i] /= N; im[i] = -im[i] / N; }
+}
+
+function nextPow2(n) {
+  let p = 1;
+  while (p < n) p <<= 1;
+  return p;
+}
+
+// Compute cepstrally-smoothed spectral envelope.
+// 1. FFT → log magnitude → IFFT → cepstrum
+// 2. Zero high-quefrency bins (harmonic fine structure)
+// 3. FFT → exp → smooth magnitude envelope
+// Returns N/2 bins covering 0 to Nyquist.
+function computeCepstralEnvelope(signal) {
+  const N = nextPow2(signal.length);
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+  for (let i = 0; i < signal.length; i++) re[i] = signal[i];
+
+  fft(re, im);
+
+  // Log magnitude
+  for (let i = 0; i < N; i++) {
+    re[i] = Math.log(Math.sqrt(re[i] * re[i] + im[i] * im[i]) + 1e-12);
+    im[i] = 0;
+  }
+
+  // IFFT → cepstrum
+  ifft(re, im);
+
+  // Lifter: keep low-quefrency coefficients (spectral envelope)
+  // and their symmetric counterparts; zero everything else
+  for (let i = CEPSTRAL_LIFTER + 1; i < N - CEPSTRAL_LIFTER; i++) {
+    re[i] = 0;
+    im[i] = 0;
+  }
+
+  // FFT back → smoothed log spectrum → exponentiate
+  fft(re, im);
+
+  const halfN = Math.floor(N / 2);
+  const envelope = new Float64Array(halfN);
+  for (let i = 0; i < halfN; i++) envelope[i] = Math.exp(re[i]);
+  return envelope;
+}
+
 // ── Formant peak detection ──────────────────────────────────────────
 
 function findFormantPeaks(spectrum, sampleRate) {
@@ -313,18 +404,13 @@ export function analyzeFormants(timeDomainData, sampleRate) {
   const effectiveSampleRate = sampleRate / DECIMATION_FACTOR;
   const processed = applyHammingWindow(preEmphasize(decimated));
 
-  // LPC analysis
-  const autocorr = computeAutocorrelation(processed, LPC_ORDER);
-  const lpcCoeffs = levinsonDurbin(autocorr, LPC_ORDER);
-  if (!lpcCoeffs) return null;
-
-  // Spectral envelope → formant peaks
-  const spectrum = evaluateLpcSpectrum(lpcCoeffs, SPECTRUM_POINTS);
-  const peaks = findFormantPeaks(spectrum, effectiveSampleRate);
+  // Cepstral spectral envelope → formant peaks
+  const envelope = computeCepstralEnvelope(processed);
+  const peaks = findFormantPeaks(envelope, effectiveSampleRate);
 
   // Pick F1: lowest-frequency peak in 150–1100 Hz.
-  // Peaks are frequency-sorted and come from a smooth LPC envelope
-  // (order 14 → at most 7 peaks), so the first in range is F1.
+  // Peaks are frequency-sorted from the smooth cepstral envelope,
+  // so the first peak in the F1 range is our best F1 estimate.
   let f1Peak = null;
   for (const p of peaks) {
     if (p.frequency >= 150 && p.frequency <= 1100) {
