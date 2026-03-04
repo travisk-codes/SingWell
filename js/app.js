@@ -328,9 +328,10 @@ function runCountIn() {
 
       // Live formant chart during countdown so user can prep vowel
       const formantResult = analyzeFormants(timeDomainData, audioEngine.getSampleRate());
-      if (formantResult) {
-        drawFormantChart(formantResult.f1, formantResult.f2);
-      }
+      drawFormantChart(
+        formantResult ? formantResult.f1 : null,
+        formantResult ? formantResult.f2 : null
+      );
     }
 
     previewFrameId = requestAnimationFrame(previewLoop);
@@ -601,15 +602,19 @@ function exerciseLoop() {
   pitchVisualizer.recordPitchSample(elapsedMs, detectedMidiNote);
   pitchVisualizer.render();
 
-  // Update formant chart with trail
+  // Update formant chart with trail (always draw so circles are visible)
   if (formantResult) {
     formantTrail.push({
       f1: formantResult.f1,
       f2: formantResult.f2,
       expectedVowel: stepExpectedVowel,
     });
-    drawFormantChart(formantResult.f1, formantResult.f2, formantTrail);
   }
+  drawFormantChart(
+    formantResult ? formantResult.f1 : null,
+    formantResult ? formantResult.f2 : null,
+    formantTrail
+  );
 
   // ── Update live readout ──────────────────────────────────────
   updateLiveDisplay(
