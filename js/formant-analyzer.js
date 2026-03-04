@@ -7,17 +7,17 @@
  *
  * Signal processing pipeline:
  *   1. Extract a centered window from the raw buffer
- *   2. 2nd-order Butterworth high-pass at 80 Hz to remove sub-
- *      fundamental rumble (proximity effect, room noise)
+ *   2. 4th-order Butterworth high-pass at 120 Hz (cascaded biquads,
+ *      24 dB/oct) to remove fundamental & proximity-effect bass
  *   3. Anti-aliased decimate 4× (~44100 → ~11025 Hz) using a
- *      41-tap Hamming-windowed sinc FIR low-pass filter
+ *      101-tap Hamming-windowed sinc FIR low-pass filter
  *   4. Pre-emphasize (first-order high-pass, coeff 0.97)
  *   5. Apply Hamming window
  *   6. Autocorrelation → Levinson-Durbin (order 14) → LPC coeffs
  *   7. Evaluate LPC spectral envelope and find peaks
- *   8. Select F1 (lowest-freq peak in 150–1100 Hz) and F2 (first
- *      peak ≥ F1+200 Hz, up to 3200 Hz) from the LPC envelope
- *   9. Temporal smoothing to reduce frame-to-frame jitter
+ *   8. Select F1 (lowest peak 150–1100 Hz) and F2 (strongest
+ *      peak ≥ F1+200 Hz, up to 3200 Hz)
+ *   9. 5-frame median filter to reject outlier estimates
  *  10. Classify vowel from (F1, F2) using nearest-center matching
  *
  * Vowel → solfege mapping:
@@ -34,13 +34,14 @@ const PRE_EMPHASIS = 0.97;
 const SPECTRUM_POINTS = 512;
 const ANALYSIS_WINDOW = 4096;
 const DECIMATION_FACTOR = 4;
-const SMOOTHING_ALPHA = 0.3;
-const HP_CUTOFF_HZ = 80;
-const AA_TAPS = 41;
+const HP_CUTOFF_HZ = 120;
+const AA_TAPS = 101;
+const MEDIAN_WINDOW = 5;
 
 // Pre-compute anti-aliasing FIR coefficients (Hamming-windowed sinc,
 // cutoff at π/DECIMATION_FACTOR so we reject everything above the
-// decimated Nyquist before down-sampling)
+// decimated Nyquist before down-sampling).  101 taps gives >40 dB
+// stopband attenuation with a ~3500 Hz transition band.
 const AA_COEFFS = (() => {
   const N = AA_TAPS;
   const cutoff = Math.PI / DECIMATION_FACTOR;
@@ -84,10 +85,10 @@ const SOLFEGE_TO_VOWEL = {
   Te: 'eh', Ti: 'ee',
 };
 
-// ── Temporal smoothing state ────────────────────────────────────────
+// ── Temporal smoothing state (median filter) ────────────────────────
 
-let smoothedF1 = null;
-let smoothedF2 = null;
+const f1Buffer = [];
+const f2Buffer = [];
 
 // ── Signal processing primitives ────────────────────────────────────
 
@@ -120,10 +121,13 @@ function preEmphasize(signal) {
   return out;
 }
 
-function applyHighPass(signal, cutoffHz, sampleRate) {
+// 4th-order Butterworth high-pass (two cascaded 2nd-order biquads).
+// 24 dB/oct rolloff aggressively removes the fundamental while
+// F1 for "ee" (~310 Hz) sees < 1 dB of attenuation.
+function applyHighPass4(signal, cutoffHz, sampleRate) {
   const omega = 2 * Math.PI * cutoffHz / sampleRate;
   const cosW = Math.cos(omega);
-  const alpha = Math.sin(omega) / (2 * 0.7071); // Q = 0.707 (Butterworth)
+  const alpha = Math.sin(omega) / (2 * 0.7071);
   const a0 = 1 + alpha;
   const b0 = ((1 + cosW) / 2) / a0;
   const b1 = (-(1 + cosW)) / a0;
@@ -131,11 +135,20 @@ function applyHighPass(signal, cutoffHz, sampleRate) {
   const a1 = (-2 * cosW) / a0;
   const a2 = (1 - alpha) / a0;
   const N = signal.length;
-  const out = new Float32Array(N);
+  // First pass
+  const mid = new Float32Array(N);
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
   for (let i = 0; i < N; i++) {
-    out[i] = b0 * signal[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    mid[i] = b0 * signal[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
     x2 = x1; x1 = signal[i];
+    y2 = y1; y1 = mid[i];
+  }
+  // Second pass (cascade)
+  const out = new Float32Array(N);
+  x1 = 0; x2 = 0; y1 = 0; y2 = 0;
+  for (let i = 0; i < N; i++) {
+    out[i] = b0 * mid[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = mid[i];
     y2 = y1; y1 = out[i];
   }
   return out;
@@ -263,17 +276,22 @@ function classifyVowel(f1, f2) {
   return bestLabel;
 }
 
-// ── Temporal smoothing ──────────────────────────────────────────────
+// ── Temporal smoothing (median filter) ───────────────────────────────
+// A median filter is far better than exponential smoothing at rejecting
+// outlier frames where LPC poles jump to harmonic positions.
+
+function medianOf(arr) {
+  const sorted = arr.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 function smoothFormants(f1, f2) {
-  if (smoothedF1 === null) {
-    smoothedF1 = f1;
-    smoothedF2 = f2;
-  } else {
-    smoothedF1 = SMOOTHING_ALPHA * f1 + (1 - SMOOTHING_ALPHA) * smoothedF1;
-    smoothedF2 = SMOOTHING_ALPHA * f2 + (1 - SMOOTHING_ALPHA) * smoothedF2;
-  }
-  return { f1: Math.round(smoothedF1), f2: Math.round(smoothedF2) };
+  f1Buffer.push(f1);
+  f2Buffer.push(f2);
+  if (f1Buffer.length > MEDIAN_WINDOW) f1Buffer.shift();
+  if (f2Buffer.length > MEDIAN_WINDOW) f2Buffer.shift();
+  return { f1: Math.round(medianOf(f1Buffer)), f2: Math.round(medianOf(f2Buffer)) };
 }
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -289,8 +307,8 @@ export function analyzeFormants(timeDomainData, sampleRate) {
   }
   if (energy / window.length < 1e-6) return null;
 
-  // High-pass → anti-alias + decimate → pre-emphasize → Hamming
-  const highPassed = applyHighPass(window, HP_CUTOFF_HZ, sampleRate);
+  // 4th-order high-pass → anti-alias + decimate → pre-emphasize → Hamming
+  const highPassed = applyHighPass4(window, HP_CUTOFF_HZ, sampleRate);
   const decimated = antiAliasDecimate(highPassed, DECIMATION_FACTOR);
   const effectiveSampleRate = sampleRate / DECIMATION_FACTOR;
   const processed = applyHammingWindow(preEmphasize(decimated));
@@ -316,12 +334,15 @@ export function analyzeFormants(timeDomainData, sampleRate) {
   }
   if (!f1Peak) return null;
 
-  // Pick F2: first peak at least 200 Hz above F1, up to 3200 Hz
+  // Pick F2: strongest peak at least 200 Hz above F1, up to 3200 Hz.
+  // Preferring the highest-amplitude candidate means we lock onto
+  // true formant resonances rather than weak spurious LPC peaks.
   let f2Peak = null;
   for (const p of peaks) {
     if (p.frequency >= f1Peak.frequency + 200 && p.frequency <= 3200) {
-      f2Peak = p;
-      break;
+      if (!f2Peak || p.amplitude > f2Peak.amplitude) {
+        f2Peak = p;
+      }
     }
   }
   if (!f2Peak) return null;
@@ -351,6 +372,6 @@ export function getExpectedVowel(solfege) {
 }
 
 export function resetFormantSmoothing() {
-  smoothedF1 = null;
-  smoothedF2 = null;
+  f1Buffer.length = 0;
+  f2Buffer.length = 0;
 }
