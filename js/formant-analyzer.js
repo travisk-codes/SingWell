@@ -16,12 +16,12 @@
  *      101-tap Hamming-windowed sinc FIR low-pass filter
  *   4. Pre-emphasize (first-order high-pass, coeff 0.97)
  *   5. Apply Hamming window
- *   6. FFT → log magnitude → IFFT → cepstrum → lifter (keep 28
+ *   6. FFT → log magnitude → IFFT → cepstrum → lifter (keep 20
  *      low-quefrency coefficients) → FFT → exp → smooth envelope
- *   7. Find peaks in the cepstral envelope
- *   8. Select F1 (lowest peak 150–1100 Hz) and F2 (vowel-guided:
- *      best (F1,F2) match to known vowel centres, up to 2800 Hz)
- *   9. 5-frame median filter to reject outlier estimates
+ *   7. Find prominent peaks (≥ 1.4× local minimum within ±150 Hz)
+ *   8. Select F1 (lowest significant peak 150–1100 Hz) and F2
+ *      (vowel-guided: best (F1,F2) vowel-centre fit, up to 2800 Hz)
+ *   9. Two-stage smoothing: 7-frame median → exponential (α=0.4)
  *  10. Classify vowel from (F1, F2) using nearest-center matching
  *
  * Vowel → solfege mapping:
@@ -38,8 +38,9 @@ const ANALYSIS_WINDOW = 4096;
 const DECIMATION_FACTOR = 4;
 const HP_CUTOFF_HZ = 120;
 const AA_TAPS = 101;
-const MEDIAN_WINDOW = 5;
-const CEPSTRAL_LIFTER = 28;
+const MEDIAN_WINDOW = 7;
+const CEPSTRAL_LIFTER = 20;
+const SMOOTH_ALPHA = 0.4;
 
 // Pre-compute anti-aliasing FIR coefficients (Hamming-windowed sinc,
 // cutoff at π/DECIMATION_FACTOR so we reject everything above the
@@ -88,10 +89,12 @@ const SOLFEGE_TO_VOWEL = {
   Te: 'eh', Ti: 'ee',
 };
 
-// ── Temporal smoothing state (median filter) ────────────────────────
+// ── Temporal smoothing state ─────────────────────────────────────────
 
 const f1Buffer = [];
 const f2Buffer = [];
+let smoothedF1 = null;
+let smoothedF2 = null;
 
 // ── Signal processing primitives ────────────────────────────────────
 
@@ -328,9 +331,18 @@ function findFormantPeaks(spectrum, sampleRate) {
 
   const minBin = Math.max(1, Math.floor(150 / binHz));
   const maxBin = Math.min(spectrum.length - 1, Math.ceil(3500 / binHz));
+  const searchRadius = Math.ceil(150 / binHz); // ±150 Hz neighbourhood
 
   for (let i = minBin; i < maxBin; i++) {
     if (spectrum[i] > spectrum[i - 1] && spectrum[i] > spectrum[i + 1]) {
+      // Prominence: peak must be ≥ 1.4× the local minimum within ±150 Hz.
+      // Rejects small cepstral ripples that aren't true formant resonances.
+      let localMin = spectrum[i];
+      for (let j = Math.max(0, i - searchRadius); j <= Math.min(spectrum.length - 1, i + searchRadius); j++) {
+        if (spectrum[j] < localMin) localMin = spectrum[j];
+      }
+      if (spectrum[i] < localMin * 1.4) continue;
+
       const lnA = Math.log(spectrum[i - 1] + 1e-12);
       const lnB = Math.log(spectrum[i] + 1e-12);
       const lnC = Math.log(spectrum[i + 1] + 1e-12);
@@ -367,9 +379,9 @@ function classifyVowel(f1, f2) {
   return bestLabel;
 }
 
-// ── Temporal smoothing (median filter) ───────────────────────────────
-// A median filter is far better than exponential smoothing at rejecting
-// outlier frames where LPC poles jump to harmonic positions.
+// ── Temporal smoothing (two-stage: median → exponential) ─────────────
+// Stage 1: median filter rejects outlier frames (wrong peak picked).
+// Stage 2: exponential smoothing gives continuous, jitter-free output.
 
 function medianOf(arr) {
   const sorted = arr.slice().sort((a, b) => a - b);
@@ -382,7 +394,19 @@ function smoothFormants(f1, f2) {
   f2Buffer.push(f2);
   if (f1Buffer.length > MEDIAN_WINDOW) f1Buffer.shift();
   if (f2Buffer.length > MEDIAN_WINDOW) f2Buffer.shift();
-  return { f1: Math.round(medianOf(f1Buffer)), f2: Math.round(medianOf(f2Buffer)) };
+
+  const medF1 = medianOf(f1Buffer);
+  const medF2 = medianOf(f2Buffer);
+
+  if (smoothedF1 === null) {
+    smoothedF1 = medF1;
+    smoothedF2 = medF2;
+  } else {
+    smoothedF1 = SMOOTH_ALPHA * medF1 + (1 - SMOOTH_ALPHA) * smoothedF1;
+    smoothedF2 = SMOOTH_ALPHA * medF2 + (1 - SMOOTH_ALPHA) * smoothedF2;
+  }
+
+  return { f1: Math.round(smoothedF1), f2: Math.round(smoothedF2) };
 }
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -408,17 +432,13 @@ export function analyzeFormants(timeDomainData, sampleRate) {
   const envelope = computeCepstralEnvelope(processed);
   const peaks = findFormantPeaks(envelope, effectiveSampleRate);
 
-  // Pick F1: lowest-frequency peak in 150–1100 Hz.
-  // Peaks are frequency-sorted from the smooth cepstral envelope,
-  // so the first peak in the F1 range is our best F1 estimate.
-  let f1Peak = null;
-  for (const p of peaks) {
-    if (p.frequency >= 150 && p.frequency <= 1100) {
-      f1Peak = p;
-      break;
-    }
-  }
-  if (!f1Peak) return null;
+  // Pick F1: lowest-frequency SIGNIFICANT peak in 150–1100 Hz.
+  // Must have amplitude ≥ 50% of the strongest F1 candidate,
+  // so a tiny cepstral ripple can't steal F1 from the real formant.
+  const f1Candidates = peaks.filter(p => p.frequency >= 150 && p.frequency <= 1100);
+  if (f1Candidates.length === 0) return null;
+  const maxF1Amp = Math.max(...f1Candidates.map(p => p.amplitude));
+  const f1Peak = f1Candidates.find(p => p.amplitude >= maxF1Amp * 0.5) || f1Candidates[0];
 
   // Pick F2: vowel-guided selection.  For each candidate peak above
   // F1+200 Hz, score how well the (F1, candidate) pair matches any
@@ -468,4 +488,6 @@ export function getExpectedVowel(solfege) {
 export function resetFormantSmoothing() {
   f1Buffer.length = 0;
   f2Buffer.length = 0;
+  smoothedF1 = null;
+  smoothedF2 = null;
 }

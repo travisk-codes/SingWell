@@ -6,7 +6,7 @@
  * network-first for everything else.
  */
 
-const CACHE_NAME = 'singwell-v7';
+const CACHE_NAME = 'singwell-v8';
 // Use relative paths so the SW works whether the app is hosted at the
 // root of a domain or inside a subdirectory (e.g. /SingWell/).
 const APP_SHELL = [
