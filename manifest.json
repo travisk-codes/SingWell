@@ -2,7 +2,7 @@
   "name": "SingWell — Vocal Warmup Trainer",
   "short_name": "SingWell",
   "description": "Real-time vocal warmup exercises with pitch detection and feedback",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0e0e0e",
   "theme_color": "#d4af37",

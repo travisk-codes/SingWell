@@ -7,19 +7,21 @@
  */
 
 const CACHE_NAME = 'singwell-v3';
+// Use relative paths so the SW works whether the app is hosted at the
+// root of a domain or inside a subdirectory (e.g. /SingWell/).
 const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/css/styles.css',
-  '/js/app.js',
-  '/js/audio-engine.js',
-  '/js/exercises.js',
-  '/js/feedback.js',
-  '/js/formant-analyzer.js',
-  '/js/pitch-detector.js',
-  '/js/profile.js',
-  '/js/visualizer.js',
-  '/manifest.json',
+  './',
+  './index.html',
+  './css/styles.css',
+  './js/app.js',
+  './js/audio-engine.js',
+  './js/exercises.js',
+  './js/feedback.js',
+  './js/formant-analyzer.js',
+  './js/pitch-detector.js',
+  './js/profile.js',
+  './js/visualizer.js',
+  './manifest.json',
 ];
 
 self.addEventListener('install', (event) => {
