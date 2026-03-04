@@ -323,6 +323,12 @@ function runCountIn() {
         midiNoteToName(Math.round(midiNote));
       document.getElementById('detected-solfege').textContent =
         midiNoteToSolfege(midiNote, selectedBaseMidiNote);
+
+      // Live formant chart during countdown so user can prep vowel
+      const formantResult = analyzeFormants(timeDomainData, audioEngine.getSampleRate());
+      if (formantResult) {
+        drawFormantChart(formantResult.f1, formantResult.f2);
+      }
     }
 
     previewFrameId = requestAnimationFrame(previewLoop);

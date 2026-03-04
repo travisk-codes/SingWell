@@ -32,7 +32,14 @@ body {
 /* ─── Header ──────────────────────────────────────────────────────── */
 
 header {
-  margin-bottom: 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(to bottom, #161616 0%, #131313 80%, rgba(14, 14, 14, 0) 100%);
+  padding: 1rem 0 1.25rem;
+  margin: -1.5rem -1rem 1.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 .header-content {
