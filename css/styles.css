@@ -690,6 +690,27 @@ button:disabled {
   border: 1px solid #2a2a2a;
 }
 
+/* ─── Results formant chart ───────────────────────────────────────── */
+
+.results-formant-section {
+  width: 100%;
+}
+
+.results-formant-section h3 {
+  font-size: 1rem;
+  color: #aaa;
+  margin-bottom: 0.5rem;
+}
+
+#results-formant-canvas {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+}
+
 /* ─── Feedback box ────────────────────────────────────────────────── */
 
 .feedback-box {

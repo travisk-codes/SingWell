@@ -59,6 +59,7 @@ let allRoundsResults = [];
 let guidedSessionQueue = [];
 let guidedSessionIndex = -1;
 let isGuidedSession = false;
+let formantTrail = [];
 
 // Minimum and maximum detectable singing frequencies (Hz).
 // Below ~70 Hz is subharmonic rumble; above ~1100 Hz is past
@@ -246,6 +247,7 @@ function launchExercise(exerciseDefinition, roundIndex = 0, transpose = 0) {
   }
 
   collectedPitchSamples = [];
+  formantTrail = [];
   previousStepIndex = -1;
 
   // Show the screen first so the canvas has layout dimensions
@@ -377,39 +379,93 @@ const VOWEL_CHART_CENTERS = [
   { label: 'oh', f1: 500, f2: 900 },
 ];
 
-function drawFormantChart(f1, f2) {
-  const canvas = document.getElementById('formant-canvas');
+const FORMANT_F1_MIN = 200, FORMANT_F1_MAX = 900;
+const FORMANT_F2_MIN = 700, FORMANT_F2_MAX = 2600;
+const VOWEL_CIRCLE_RADIUS = 14;
+
+function formantToXY(f1, f2, w, h) {
+  const x = (1 - (f2 - FORMANT_F2_MIN) / (FORMANT_F2_MAX - FORMANT_F2_MIN)) * (w - 20) + 10;
+  const y = ((f1 - FORMANT_F1_MIN) / (FORMANT_F1_MAX - FORMANT_F1_MIN)) * (h - 20) + 10;
+  return { x, y };
+}
+
+/**
+ * Compute how close a formant point is to its expected vowel center.
+ * Returns 'green' if inside the circle, 'yellow' if close, 'red' if far.
+ */
+function formantAccuracyColor(f1, f2, expectedVowel) {
+  if (!expectedVowel) return 'rgba(255, 255, 255, 0.4)';
+  const center = VOWEL_CHART_CENTERS.find((v) => v.label === expectedVowel);
+  if (!center) return 'rgba(255, 255, 255, 0.4)';
+
+  // Normalized distance (same scaling as classifyVowel)
+  const d1 = (f1 - center.f1) / 300;
+  const d2 = (f2 - center.f2) / 800;
+  const dist = Math.sqrt(d1 * d1 + d2 * d2);
+
+  if (dist < 0.5) return '#4ade80';   // green — inside circle
+  if (dist < 1.0) return '#facc15';   // yellow — close
+  return '#f87171';                     // red — far
+}
+
+/**
+ * Render the formant chart on a given canvas.
+ * @param {HTMLCanvasElement} canvas
+ * @param {number|null} liveF1 - current detected F1 (null for static chart)
+ * @param {number|null} liveF2 - current detected F2
+ * @param {Array} trail - collected formant trail samples
+ */
+function renderFormantChart(canvas, liveF1, liveF2, trail) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
   const h = canvas.height;
 
-  // F2 on x-axis (reversed: high F2 on left), F1 on y-axis (reversed: high F1 on bottom)
-  const f1Min = 200, f1Max = 900;
-  const f2Min = 700, f2Max = 2600;
-
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0, 0, w, h);
 
-  // Draw vowel positions
+  // Draw vowel target circles
   ctx.font = '11px monospace';
   for (const v of VOWEL_CHART_CENTERS) {
-    const x = (1 - (v.f2 - f2Min) / (f2Max - f2Min)) * (w - 20) + 10;
-    const y = ((v.f1 - f1Min) / (f1Max - f1Min)) * (h - 20) + 10;
+    const { x, y } = formantToXY(v.f1, v.f2, w, h);
 
-    ctx.fillStyle = 'rgba(212, 175, 55, 0.3)';
+    ctx.fillStyle = 'rgba(212, 175, 55, 0.2)';
     ctx.beginPath();
-    ctx.arc(x, y, 14, 0, Math.PI * 2);
+    ctx.arc(x, y, VOWEL_CIRCLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, VOWEL_CIRCLE_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.fillStyle = '#d4af37';
     ctx.textAlign = 'center';
     ctx.fillText(v.label, x, y + 4);
   }
 
-  // Draw detected position
-  if (f1 && f2) {
-    const x = (1 - (f2 - f2Min) / (f2Max - f2Min)) * (w - 20) + 10;
-    const y = ((f1 - f1Min) / (f1Max - f1Min)) * (h - 20) + 10;
+  // Draw trail path with accuracy coloring
+  if (trail && trail.length > 1) {
+    ctx.lineWidth = 2;
+    for (let i = 1; i < trail.length; i++) {
+      const prev = formantToXY(trail[i - 1].f1, trail[i - 1].f2, w, h);
+      const curr = formantToXY(trail[i].f1, trail[i].f2, w, h);
+
+      ctx.strokeStyle = formantAccuracyColor(
+        trail[i].f1, trail[i].f2, trail[i].expectedVowel
+      );
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(curr.x, curr.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+  }
+
+  // Draw live detected position
+  if (liveF1 && liveF2) {
+    const { x, y } = formantToXY(liveF1, liveF2, w, h);
 
     ctx.fillStyle = '#fff';
     ctx.beginPath();
@@ -421,6 +477,14 @@ function drawFormantChart(f1, f2) {
     ctx.arc(x, y, 10, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/** Live formant chart shorthand (used during exercise and countdown). */
+function drawFormantChart(f1, f2, trail) {
+  renderFormantChart(
+    document.getElementById('formant-canvas'),
+    f1, f2, trail || []
+  );
 }
 
 function flashBeatIndicator() {
@@ -537,9 +601,14 @@ function exerciseLoop() {
   pitchVisualizer.recordPitchSample(elapsedMs, detectedMidiNote);
   pitchVisualizer.render();
 
-  // Update formant chart
+  // Update formant chart with trail
   if (formantResult) {
-    drawFormantChart(formantResult.f1, formantResult.f2);
+    formantTrail.push({
+      f1: formantResult.f1,
+      f2: formantResult.f2,
+      expectedVowel: stepExpectedVowel,
+    });
+    drawFormantChart(formantResult.f1, formantResult.f2, formantTrail);
   }
 
   // ── Update live readout ──────────────────────────────────────
@@ -838,6 +907,19 @@ function displayResults(feedback, pitchGraphDataUrl) {
     graphSection.classList.remove('hidden');
   } else {
     graphSection.classList.add('hidden');
+  }
+
+  // Formant trail chart on results page
+  const formantSection = document.getElementById('results-formant-section');
+  if (formantTrail.length > 5) {
+    formantSection.classList.remove('hidden');
+    const formantCanvas = document.getElementById('results-formant-canvas');
+    // Set actual pixel dimensions to match displayed size
+    formantCanvas.width = formantCanvas.offsetWidth || 320;
+    formantCanvas.height = Math.round((formantCanvas.width / 320) * 260);
+    renderFormantChart(formantCanvas, null, null, formantTrail);
+  } else {
+    formantSection.classList.add('hidden');
   }
 
   // Feedback text
