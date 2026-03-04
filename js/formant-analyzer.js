@@ -13,9 +13,10 @@
  *   4. Apply Hamming window
  *   5. Autocorrelation → Levinson-Durbin (order 12) → LPC coeffs
  *   6. Evaluate LPC spectral envelope and find peaks
- *   7. Filter out peaks near F0 harmonics (avoids pitch artefacts)
- *   8. Classify vowel from (F1, F2) using nearest-center matching
- *   9. Temporal smoothing to reduce frame-to-frame jitter
+ *   7. Select F1 (lowest-freq peak in 150–1100 Hz) and F2 (first
+ *      peak ≥ F1+200 Hz, up to 3200 Hz) from the LPC envelope
+ *   8. Temporal smoothing to reduce frame-to-frame jitter
+ *   9. Classify vowel from (F1, F2) using nearest-center matching
  *
  * Vowel → solfege mapping:
  *   ee  → Mi, Ti   (and chromatic Di, Fi)
@@ -253,24 +254,24 @@ export function analyzeFormants(timeDomainData, sampleRate) {
   const spectrum = evaluateLpcSpectrum(lpcCoeffs, SPECTRUM_POINTS);
   const peaks = findFormantPeaks(spectrum, effectiveSampleRate);
 
-  // Pick F1: strongest peak in 150–1100 Hz
+  // Pick F1: lowest-frequency peak in 150–1100 Hz.
+  // Peaks are frequency-sorted and come from a smooth LPC envelope
+  // (order 12 → at most 6 peaks), so the first in range is F1.
   let f1Peak = null;
   for (const p of peaks) {
     if (p.frequency >= 150 && p.frequency <= 1100) {
-      if (!f1Peak || p.amplitude > f1Peak.amplitude) {
-        f1Peak = p;
-      }
+      f1Peak = p;
+      break;
     }
   }
   if (!f1Peak) return null;
 
-  // Pick F2: strongest peak above F1+200, up to 3200 Hz
+  // Pick F2: first peak at least 200 Hz above F1, up to 3200 Hz
   let f2Peak = null;
   for (const p of peaks) {
     if (p.frequency >= f1Peak.frequency + 200 && p.frequency <= 3200) {
-      if (!f2Peak || p.amplitude > f2Peak.amplitude) {
-        f2Peak = p;
-      }
+      f2Peak = p;
+      break;
     }
   }
   if (!f2Peak) return null;

@@ -310,15 +310,6 @@ function exerciseLoop() {
     detectedMidiNote = frequencyToMidiNote(pitchResult.frequency);
   }
 
-  // ── Formant / vowel detection ─────────────────────────────────
-  let formantResult = null;
-  if (detectedMidiNote !== null) {
-    formantResult = analyzeFormants(
-      timeDomainData,
-      audioEngine.getSampleRate()
-    );
-  }
-
   // ── Find the current exercise step ───────────────────────────
   let accumulatedTimeMs = 0;
   let currentStepIndex = 0;
@@ -337,7 +328,8 @@ function exerciseLoop() {
   }
 
   // Play a reference tone when we transition to a new step
-  // (skip for continuous exercises — the slide is the point)
+  // (skip for continuous exercises — the slide is the point).
+  // Reset formant smoothing so vowel detection starts fresh.
   if (
     currentStepIndex !== previousStepIndex &&
     !activeExerciseDefinition.isContinuous
@@ -347,6 +339,15 @@ function exerciseLoop() {
     previousStepIndex = currentStepIndex;
   } else if (activeExerciseDefinition.isContinuous) {
     previousStepIndex = currentStepIndex;
+  }
+
+  // ── Formant / vowel detection ─────────────────────────────────
+  let formantResult = null;
+  if (detectedMidiNote !== null) {
+    formantResult = analyzeFormants(
+      timeDomainData,
+      audioEngine.getSampleRate()
+    );
   }
 
   // ── Check vowel against expected solfege ──────────────────────
