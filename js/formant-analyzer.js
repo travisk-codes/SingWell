@@ -15,8 +15,8 @@
  *   5. Apply Hamming window
  *   6. Autocorrelation → Levinson-Durbin (order 14) → LPC coeffs
  *   7. Evaluate LPC spectral envelope and find peaks
- *   8. Select F1 (lowest peak 150–1100 Hz) and F2 (strongest
- *      peak ≥ F1+200 Hz, up to 3200 Hz)
+ *   8. Select F1 (lowest peak 150–1100 Hz) and F2 (vowel-guided:
+ *      best (F1,F2) match to known vowel centres, up to 2800 Hz)
  *   9. 5-frame median filter to reject outlier estimates
  *  10. Classify vowel from (F1, F2) using nearest-center matching
  *
@@ -334,14 +334,22 @@ export function analyzeFormants(timeDomainData, sampleRate) {
   }
   if (!f1Peak) return null;
 
-  // Pick F2: strongest peak at least 200 Hz above F1, up to 3200 Hz.
-  // Preferring the highest-amplitude candidate means we lock onto
-  // true formant resonances rather than weak spurious LPC peaks.
+  // Pick F2: vowel-guided selection.  For each candidate peak above
+  // F1+200 Hz, score how well the (F1, candidate) pair matches any
+  // known vowel centre.  This prevents F3 or spurious high-frequency
+  // peaks from being chosen over the true F2.
   let f2Peak = null;
+  let bestVowelDist = Infinity;
   for (const p of peaks) {
-    if (p.frequency >= f1Peak.frequency + 200 && p.frequency <= 3200) {
-      if (!f2Peak || p.amplitude > f2Peak.amplitude) {
-        f2Peak = p;
+    if (p.frequency >= f1Peak.frequency + 200 && p.frequency <= 2800) {
+      for (const v of VOWEL_CENTERS) {
+        const d1 = (f1Peak.frequency - v.f1) / 300;
+        const d2 = (p.frequency - v.f2) / 800;
+        const dist = d1 * d1 + d2 * d2;
+        if (dist < bestVowelDist) {
+          bestVowelDist = dist;
+          f2Peak = p;
+        }
       }
     }
   }
