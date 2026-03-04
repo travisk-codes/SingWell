@@ -289,6 +289,32 @@ export const WARMUP_EXERCISES = [
   },
 
   {
+    id: 'range-finder',
+    name: 'Range Finder',
+    description:
+      'Ascend chromatically from your base note, one semitone at a time. ' +
+      'Hold each note for 2 seconds. This maps out the comfortable top of your range.',
+    isContinuous: false,
+    evaluationMetrics: ['pitch_accuracy'],
+
+    createSteps(baseMidiNote) {
+      // Go up 18 semitones (1.5 octaves) chromatically
+      const steps = [];
+      for (let i = 0; i <= 18; i++) {
+        const midiNote = baseMidiNote + i;
+        steps.push({
+          targetMidiNote: midiNote,
+          targetFrequency: midiNoteToFrequency(midiNote),
+          noteName: midiNoteToName(midiNote),
+          solfegeLabel: intervalToSolfege(i),
+          durationMs: 2000,
+        });
+      }
+      return steps;
+    },
+  },
+
+  {
     id: 'messa-di-voce',
     name: 'Messa di Voce',
     description:

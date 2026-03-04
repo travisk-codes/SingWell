@@ -26,6 +26,7 @@ import {
   renderPerformanceLegend,
   renderHistoryList,
   renderRunningAverages,
+  renderStreakInfo,
 } from './profile.js';
 import {
   analyzeFormants,
@@ -50,6 +51,14 @@ let previousStepIndex = -1;
 let collectedPitchSamples = [];
 let profileReturnScreen = null;
 let currentTimescale = 'all';
+let currentTempoMultiplier = 1.0;
+let keyRepeatTotal = 1;
+let keyRepeatCurrent = 0;
+let keyRepeatTranspose = 0;
+let allRoundsResults = [];
+let guidedSessionQueue = [];
+let guidedSessionIndex = -1;
+let isGuidedSession = false;
 
 // Minimum and maximum detectable singing frequencies (Hz).
 // Below ~70 Hz is subharmonic rumble; above ~1100 Hz is past
@@ -162,11 +171,80 @@ function populateExerciseList() {
   }
 }
 
+// ── Guided warmup session ────────────────────────────────────────
+
+const GUIDED_WARMUP_IDS = [
+  'sustained-tone',
+  'five-tone-scale',
+  'major-arpeggio',
+  'octave-siren',
+];
+
+document.getElementById('guided-warmup-btn').addEventListener('click', () => {
+  guidedSessionQueue = GUIDED_WARMUP_IDS.map(
+    (id) => WARMUP_EXERCISES.find((e) => e.id === id)
+  ).filter(Boolean);
+  guidedSessionIndex = 0;
+  isGuidedSession = true;
+  updateSessionProgress();
+  launchExercise(guidedSessionQueue[0], 0, 0);
+});
+
+function updateSessionProgress() {
+  const el = document.getElementById('session-progress');
+  if (!isGuidedSession || guidedSessionQueue.length === 0) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  el.innerHTML = guidedSessionQueue.map((ex, i) => {
+    let cls = 'session-step';
+    if (i < guidedSessionIndex) cls += ' session-done';
+    if (i === guidedSessionIndex) cls += ' session-current';
+    return `<span class="${cls}">${ex.name}</span>`;
+  }).join('<span class="session-arrow">→</span>');
+}
+
+// ── Tempo control ────────────────────────────────────────────────
+
+document.querySelectorAll('.tempo-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    currentTempoMultiplier = parseFloat(btn.dataset.tempo);
+    document.querySelectorAll('.tempo-btn').forEach((b) =>
+      b.classList.toggle('active', b === btn)
+    );
+  });
+});
+
+// ── Key repeat control ───────────────────────────────────────────
+
+document.querySelectorAll('.key-repeat-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    keyRepeatTotal = parseInt(btn.dataset.keys, 10);
+    document.querySelectorAll('.key-repeat-btn').forEach((b) =>
+      b.classList.toggle('active', b === btn)
+    );
+  });
+});
+
 // ── Active exercise screen ───────────────────────────────────────────
 
-function launchExercise(exerciseDefinition) {
+function launchExercise(exerciseDefinition, roundIndex = 0, transpose = 0) {
   activeExerciseDefinition = exerciseDefinition;
-  activeExerciseSteps = exerciseDefinition.createSteps(selectedBaseMidiNote);
+  keyRepeatCurrent = roundIndex;
+  keyRepeatTranspose = transpose;
+  if (roundIndex === 0) allRoundsResults = [];
+
+  activeExerciseSteps = exerciseDefinition.createSteps(selectedBaseMidiNote + transpose);
+
+  // Apply tempo multiplier (lower multiplier = slower = longer durations)
+  if (currentTempoMultiplier !== 1.0) {
+    activeExerciseSteps = activeExerciseSteps.map((step) => ({
+      ...step,
+      durationMs: Math.round(step.durationMs / currentTempoMultiplier),
+    }));
+  }
+
   collectedPitchSamples = [];
   previousStepIndex = -1;
 
@@ -198,6 +276,15 @@ function launchExercise(exerciseDefinition) {
   document.getElementById('exercise-progress').style.width = '0%';
   document.getElementById('vowel-indicator').textContent = '';
   document.getElementById('vowel-indicator').className = 'vowel-indicator';
+
+  // Show round indicator when doing multiple keys
+  const roundIndicator = document.getElementById('round-indicator');
+  if (keyRepeatTotal > 1) {
+    roundIndicator.textContent = `Key ${keyRepeatCurrent + 1} of ${keyRepeatTotal} (+${keyRepeatTranspose} semitones)`;
+    roundIndicator.classList.remove('hidden');
+  } else {
+    roundIndicator.classList.add('hidden');
+  }
 
   resetFormantSmoothing();
   runCountIn();
@@ -275,6 +362,69 @@ function drawPitchPreviewLine(midiNote) {
   ctx.fillText(midiNoteToName(Math.round(midiNote)), 6, y - 6);
 }
 
+// ── Formant chart rendering ──────────────────────────────────────────
+
+const VOWEL_CHART_CENTERS = [
+  { label: 'ee', f1: 310, f2: 2300 },
+  { label: 'eh', f1: 600, f2: 1800 },
+  { label: 'ah', f1: 750, f2: 1200 },
+  { label: 'oh', f1: 500, f2: 900 },
+];
+
+function drawFormantChart(f1, f2) {
+  const canvas = document.getElementById('formant-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // F2 on x-axis (reversed: high F2 on left), F1 on y-axis (reversed: high F1 on bottom)
+  const f1Min = 200, f1Max = 900;
+  const f2Min = 700, f2Max = 2600;
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, w, h);
+
+  // Draw vowel positions
+  ctx.font = '11px monospace';
+  for (const v of VOWEL_CHART_CENTERS) {
+    const x = (1 - (v.f2 - f2Min) / (f2Max - f2Min)) * (w - 20) + 10;
+    const y = ((v.f1 - f1Min) / (f1Max - f1Min)) * (h - 20) + 10;
+
+    ctx.fillStyle = 'rgba(212, 175, 55, 0.3)';
+    ctx.beginPath();
+    ctx.arc(x, y, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#d4af37';
+    ctx.textAlign = 'center';
+    ctx.fillText(v.label, x, y + 4);
+  }
+
+  // Draw detected position
+  if (f1 && f2) {
+    const x = (1 - (f2 - f2Min) / (f2Max - f2Min)) * (w - 20) + 10;
+    const y = ((f1 - f1Min) / (f1Max - f1Min)) * (h - 20) + 10;
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function flashBeatIndicator() {
+  const indicator = document.getElementById('beat-indicator');
+  indicator.classList.remove('beat-flash');
+  // Force reflow to restart animation
+  void indicator.offsetWidth;
+  indicator.classList.add('beat-flash');
+}
+
 function beginExerciseLoop() {
   exerciseStartTimestamp = performance.now();
   isExerciseRunning = true;
@@ -330,12 +480,14 @@ function exerciseLoop() {
   // Play a reference tone when we transition to a new step
   // (skip for continuous exercises — the slide is the point).
   // Reset formant smoothing so vowel detection starts fresh.
+  // Flash the beat indicator on each transition.
   if (
     currentStepIndex !== previousStepIndex &&
     !activeExerciseDefinition.isContinuous
   ) {
     audioEngine.playReferenceTone(currentStep.targetFrequency, 0.5, 0.08);
     resetFormantSmoothing();
+    flashBeatIndicator();
     previousStepIndex = currentStepIndex;
   } else if (activeExerciseDefinition.isContinuous) {
     previousStepIndex = currentStepIndex;
@@ -378,6 +530,11 @@ function exerciseLoop() {
   // ── Update visualization ─────────────────────────────────────
   pitchVisualizer.recordPitchSample(elapsedMs, detectedMidiNote);
   pitchVisualizer.render();
+
+  // Update formant chart
+  if (formantResult) {
+    drawFormantChart(formantResult.f1, formantResult.f2);
+  }
 
   // ── Update live readout ──────────────────────────────────────
   updateLiveDisplay(
@@ -496,6 +653,23 @@ document.getElementById('stop-exercise-btn').addEventListener('click', () => {
   showScreen(exerciseListScreen);
 });
 
+// Preview melody button — plays the full exercise melody
+document.getElementById('preview-melody-btn').addEventListener('click', () => {
+  if (!activeExerciseSteps) return;
+
+  // Deduplicate consecutive same-note steps for continuous exercises
+  const notes = [];
+  let lastFreq = null;
+  for (const step of activeExerciseSteps) {
+    const freq = Math.round(step.targetFrequency);
+    if (freq !== lastFreq) {
+      notes.push({ frequency: step.targetFrequency, durationMs: step.durationMs });
+      lastFreq = freq;
+    }
+  }
+  audioEngine.playMelodyPreview(notes);
+});
+
 // Reference tone button during exercise
 document.getElementById('play-reference-btn').addEventListener('click', () => {
   if (!isExerciseRunning || !activeExerciseSteps) return;
@@ -530,12 +704,26 @@ function finishExercise() {
     activeExerciseDefinition.isContinuous
   );
 
+  allRoundsResults.push(feedback);
+
+  // If there are more keys to do, advance to the next round
+  const nextRound = keyRepeatCurrent + 1;
+  if (nextRound < keyRepeatTotal && !activeExerciseDefinition.isContinuous) {
+    launchExercise(activeExerciseDefinition, nextRound, keyRepeatTranspose + 1);
+    return;
+  }
+
+  // Compute average score across all rounds
+  const avgScore = allRoundsResults.reduce(
+    (sum, r) => sum + r.overallOnPitchPercent, 0
+  ) / allRoundsResults.length;
+
   // Save to practice history
   saveExerciseResult({
     exerciseId: activeExerciseDefinition.id,
     exerciseName: activeExerciseDefinition.name,
     voiceType: selectedVoiceType,
-    score: feedback.overallOnPitchPercent,
+    score: avgScore,
     rating: feedback.rating,
   });
 
@@ -625,6 +813,15 @@ function displayResults(feedback, pitchGraphDataUrl) {
     }
   } else {
     vowelScoreElement.classList.add('hidden');
+  }
+
+  // Volume shape score (Messa di Voce)
+  const volShapeElement = document.getElementById('volume-shape-score');
+  if (feedback.volumeShapeScore !== null && feedback.volumeShapeScore !== undefined) {
+    volShapeElement.textContent = `${feedback.volumeShapeScore}% dynamic control`;
+    volShapeElement.classList.remove('hidden');
+  } else {
+    volShapeElement.classList.add('hidden');
   }
 
   // Pitch graph snapshot
@@ -746,14 +943,35 @@ function displayResults(feedback, pitchGraphDataUrl) {
   // Wire up action buttons
   document.getElementById('retry-btn').addEventListener(
     'click',
-    () => launchExercise(activeExerciseDefinition),
+    () => launchExercise(activeExerciseDefinition, 0, 0),
     { once: true }
   );
-  document.getElementById('back-to-list-btn').addEventListener(
-    'click',
-    () => showScreen(exerciseListScreen),
-    { once: true }
-  );
+
+  const backBtn = document.getElementById('back-to-list-btn');
+  if (isGuidedSession && guidedSessionIndex < guidedSessionQueue.length - 1) {
+    backBtn.textContent = 'Next Exercise →';
+    backBtn.addEventListener(
+      'click',
+      () => {
+        guidedSessionIndex++;
+        updateSessionProgress();
+        launchExercise(guidedSessionQueue[guidedSessionIndex], 0, 0);
+      },
+      { once: true }
+    );
+  } else {
+    backBtn.textContent = 'Back to Exercises';
+    backBtn.addEventListener(
+      'click',
+      () => {
+        isGuidedSession = false;
+        guidedSessionIndex = -1;
+        updateSessionProgress();
+        showScreen(exerciseListScreen);
+      },
+      { once: true }
+    );
+  }
 }
 
 // ── Profile screen ───────────────────────────────────────────────────
@@ -780,6 +998,9 @@ document.getElementById('profile-btn').addEventListener('click', () => {
 
 function showProfile() {
   showScreen(profileScreen);
+
+  // Render streak info
+  renderStreakInfo();
 
   // Render performance graph with current timescale
   const canvas = document.getElementById('performance-canvas');

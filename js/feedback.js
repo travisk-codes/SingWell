@@ -10,6 +10,10 @@
 // 30 cents off is noticeably wrong to most listeners.
 const ON_PITCH_THRESHOLD_CENTS = 30;
 
+// Grace period: skip the first N ms of each step when scoring,
+// since singers need time to transition between notes.
+const TRANSITION_GRACE_MS = 150;
+
 /**
  * Analyze the singer's pitch data against the exercise targets.
  *
@@ -50,7 +54,7 @@ export function analyzePerformance(
     overallAverageCentsOff
   );
 
-  const feedbackText = buildFeedbackText(
+  let feedbackText = buildFeedbackText(
     pitchSamples.length,
     stepsWithData,
     overallOnPitchPercent,
@@ -60,6 +64,14 @@ export function analyzePerformance(
     isContinuousExercise
   );
 
+  // Volume shape analysis for steps that request it (e.g. Messa di Voce)
+  const volumeShapeScore = evaluateVolumeShape(pitchSamples, exerciseSteps);
+
+  if (volumeShapeScore !== null) {
+    const volLine = buildVolumeShapeFeedback(volumeShapeScore);
+    if (volLine) feedbackText += ' ' + volLine;
+  }
+
   return {
     perStepResults,
     overallOnPitchPercent,
@@ -68,6 +80,7 @@ export function analyzePerformance(
     rating,
     feedbackText,
     isContinuousExercise,
+    volumeShapeScore,
   };
 }
 
@@ -79,8 +92,10 @@ function evaluateEachStep(pitchSamples, exerciseSteps) {
 
   for (const step of exerciseSteps) {
     const stepEndTimeMs = stepStartTimeMs + step.durationMs;
+    // Skip samples in the transition grace period at the start of each step
+    const graceEnd = stepStartTimeMs + TRANSITION_GRACE_MS;
     const samplesInStep = pitchSamples.filter(
-      (s) => s.timeMs >= stepStartTimeMs && s.timeMs < stepEndTimeMs
+      (s) => s.timeMs >= graceEnd && s.timeMs < stepEndTimeMs
     );
 
     if (samplesInStep.length === 0) {
@@ -232,4 +247,95 @@ function buildFeedbackText(
   }
 
   return lines.join(' ');
+}
+
+// ── Volume shape evaluation (Messa di Voce) ──────────────────────────
+
+/**
+ * For steps with volumeShape: 'crescendo-decrescendo', evaluate how
+ * well the singer's RMS volume follows the expected diamond shape.
+ * Returns a 0–100 score, or null if no volume-shape steps exist.
+ */
+function evaluateVolumeShape(pitchSamples, exerciseSteps) {
+  let stepStartMs = 0;
+  let totalScore = 0;
+  let shapeStepCount = 0;
+
+  for (const step of exerciseSteps) {
+    const stepEndMs = stepStartMs + step.durationMs;
+
+    if (step.volumeShape === 'crescendo-decrescendo') {
+      const stepSamples = pitchSamples.filter(
+        (s) => s.timeMs >= stepStartMs && s.timeMs < stepEndMs && s.rmsVolume != null
+      );
+
+      if (stepSamples.length >= 6) {
+        // Divide into bins and compute average RMS per bin
+        const numBins = 8;
+        const bins = Array.from({ length: numBins }, () => []);
+        for (const s of stepSamples) {
+          const progress = (s.timeMs - stepStartMs) / step.durationMs;
+          const binIndex = Math.min(Math.floor(progress * numBins), numBins - 1);
+          bins[binIndex].push(s.rmsVolume);
+        }
+
+        const binAvgs = bins.map((b) =>
+          b.length > 0 ? b.reduce((a, v) => a + v, 0) / b.length : 0
+        );
+
+        // Expected shape: volume should peak near the middle
+        // Score based on: does volume increase in the first half
+        // and decrease in the second half?
+        const midpoint = Math.floor(numBins / 2);
+        let correctDirections = 0;
+        let totalDirections = 0;
+
+        // First half should be ascending
+        for (let i = 1; i <= midpoint; i++) {
+          if (binAvgs[i] > 0 && binAvgs[i - 1] > 0) {
+            totalDirections++;
+            if (binAvgs[i] >= binAvgs[i - 1] * 0.9) correctDirections++;
+          }
+        }
+
+        // Second half should be descending
+        for (let i = midpoint + 1; i < numBins; i++) {
+          if (binAvgs[i] > 0 && binAvgs[i - 1] > 0) {
+            totalDirections++;
+            if (binAvgs[i] <= binAvgs[i - 1] * 1.1) correctDirections++;
+          }
+        }
+
+        // Check that the middle is louder than the ends
+        const peakVolume = Math.max(...binAvgs);
+        const startVolume = binAvgs[0] || 0;
+        const endVolume = binAvgs[numBins - 1] || 0;
+        const dynamicRange = peakVolume > 0
+          ? 1 - (startVolume + endVolume) / (2 * peakVolume)
+          : 0;
+
+        const directionScore = totalDirections > 0
+          ? (correctDirections / totalDirections) * 100
+          : 50;
+        const rangeScore = Math.min(dynamicRange * 200, 100);
+
+        totalScore += directionScore * 0.6 + rangeScore * 0.4;
+        shapeStepCount++;
+      }
+    }
+
+    stepStartMs = stepEndMs;
+  }
+
+  return shapeStepCount > 0 ? Math.round(totalScore / shapeStepCount) : null;
+}
+
+function buildVolumeShapeFeedback(score) {
+  if (score >= 80) {
+    return 'Your dynamic control was strong — nice crescendo-decrescendo shape.';
+  } else if (score >= 55) {
+    return 'Your volume shape was recognizable but could be more pronounced. Try starting softer and building to a clear peak before fading.';
+  } else {
+    return 'The crescendo-decrescendo shape was not very clear. Focus on starting soft, growing to full volume at the midpoint, then fading back to soft.';
+  }
 }

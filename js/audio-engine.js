@@ -122,6 +122,41 @@ export class AudioEngine {
     this.playReferenceTone(880, 0.08, 0.1);
   }
 
+  /**
+   * Play a sequence of notes as a preview melody.
+   * @param {Array<{frequency: number, durationMs: number}>} notes
+   * @param {number} volume
+   */
+  playMelodyPreview(notes, volume = 0.1) {
+    const now = this.audioContext.currentTime;
+    let offset = 0;
+
+    for (const note of notes) {
+      const durationSec = Math.min(note.durationMs / 1000, 0.6);
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.value = note.frequency;
+
+      const fadeTime = 0.03;
+      const startTime = now + offset;
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(volume, startTime + fadeTime);
+      gainNode.gain.setValueAtTime(volume, startTime + durationSec - fadeTime);
+      gainNode.gain.linearRampToValueAtTime(0, startTime + durationSec);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + durationSec);
+
+      offset += durationSec + 0.05;
+    }
+
+    return offset * 1000;
+  }
+
   /** Release all audio resources. */
   shutdown() {
     if (this.microphoneStream) {

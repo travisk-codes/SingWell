@@ -203,6 +203,139 @@ button:disabled {
   color: #e8c84a;
 }
 
+/* ─── Guided warmup ──────────────────────────────────────────────── */
+
+.guided-warmup-btn {
+  background: linear-gradient(135deg, #2a261a, #1a1a1a);
+  border: 1px solid #d4af37;
+  color: #d4af37;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.guided-warmup-btn:hover {
+  background: linear-gradient(135deg, #332f1f, #222);
+}
+
+.guided-sub {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #999;
+}
+
+.session-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.session-step {
+  font-size: 0.8rem;
+  color: #666;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: #1a1a1a;
+}
+
+.session-step.session-current {
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.12);
+  font-weight: 600;
+}
+
+.session-step.session-done {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.session-arrow {
+  font-size: 0.75rem;
+  color: #555;
+}
+
+/* ─── Exercise options row ────────────────────────────────────────── */
+
+.exercise-options-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.round-indicator {
+  font-size: 0.85rem;
+  color: #d4af37;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  background: rgba(212, 175, 55, 0.12);
+  border-radius: 6px;
+}
+
+/* ─── Tempo control ──────────────────────────────────────────────── */
+
+.tempo-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.key-repeat-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.key-repeat-btn {
+  background: #2a2a2a;
+  color: #999;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+.key-repeat-btn:hover {
+  background: #383838;
+}
+
+.key-repeat-btn.active {
+  background: #d4af37;
+  color: #0e0e0e;
+  font-weight: 600;
+}
+
+.tempo-label {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.tempo-btn {
+  background: #2a2a2a;
+  color: #999;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+.tempo-btn:hover {
+  background: #383838;
+}
+
+.tempo-btn.active {
+  background: #d4af37;
+  color: #0e0e0e;
+  font-weight: 600;
+}
+
 /* ─── Exercise cards ──────────────────────────────────────────────── */
 
 .exercise-grid {
@@ -346,6 +479,18 @@ button:disabled {
   color: #facc15;
 }
 
+/* ─── Formant chart ──────────────────────────────────────────────── */
+
+.formant-chart-container {
+  display: flex;
+  justify-content: center;
+}
+
+#formant-canvas {
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+}
+
 /* ─── Volume meter ────────────────────────────────────────────────── */
 
 .volume-meter-container {
@@ -409,6 +554,28 @@ button:disabled {
   color: #d4af37;
   text-shadow: 0 0 30px rgba(212, 175, 55, 0.4);
   pointer-events: none;
+}
+
+/* ─── Beat indicator ──────────────────────────────────────────────── */
+
+.beat-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d4af37;
+  opacity: 0;
+  transition: opacity 0.08s;
+  align-self: center;
+}
+
+.beat-indicator.beat-flash {
+  opacity: 1;
+  animation: beat-pulse 0.35s ease-out;
+}
+
+@keyframes beat-pulse {
+  0% { transform: scale(1.6); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.2; }
 }
 
 /* ─── Progress bar ────────────────────────────────────────────────── */
@@ -488,6 +655,13 @@ button:disabled {
   font-size: 0.95rem;
   color: #d4af37;
   margin-top: 0.35rem;
+  font-weight: 500;
+}
+
+.volume-shape-score {
+  font-size: 0.95rem;
+  color: #fb923c;
+  margin-top: 0.25rem;
   font-weight: 500;
 }
 
@@ -661,6 +835,46 @@ button:disabled {
 
 /* ─── Profile screen ─────────────────────────────────────────────── */
 
+.streak-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: #1a1a1a;
+  border-radius: 10px;
+  border: 1px solid #2a2a2a;
+}
+
+.streak-display {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.streak-count {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #d4af37;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.streak-label {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.streak-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.streak-detail {
+  font-size: 0.8rem;
+  color: #777;
+}
+
 .profile-graph-container {
   width: 100%;
 }
@@ -811,6 +1025,49 @@ button:disabled {
 
 .avg-cell.avg-needs-work {
   color: #f87171;
+}
+
+/* ─── Trend indicators ───────────────────────────────────────────── */
+
+.trend-header {
+  font-size: 0.85rem;
+  color: #777;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.trend-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.trend-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  font-size: 0.8rem;
+}
+
+.trend-exercise {
+  font-weight: 500;
+}
+
+.trend-direction {
+  font-weight: 500;
+}
+
+.trend-up {
+  color: #4ade80;
+}
+
+.trend-down {
+  color: #f87171;
+}
+
+.trend-stable {
+  color: #888;
 }
 
 .history-list-container {

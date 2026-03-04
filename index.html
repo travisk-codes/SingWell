@@ -6,6 +6,10 @@
     <title>SingWell — Vocal Warmup Trainer</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><ellipse cx='22' cy='46' rx='13' ry='9' transform='rotate(-25 22 46)' fill='%23d4af37'/><rect x='33' y='10' width='3.5' height='38' fill='%23d4af37'/><path d='M36.5 10 C48 14 48 26 36.5 24' fill='%23d4af37'/></svg>" />
     <link rel="stylesheet" href="css/styles.css" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#d4af37" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   </head>
   <body>
     <div id="app">
@@ -84,6 +88,25 @@
       <!-- ─── Exercise List Screen ─────────────────────────────── -->
       <div id="exercise-list-screen" class="screen hidden">
         <h2>Choose an Exercise</h2>
+        <div class="exercise-options-row">
+          <div class="tempo-control">
+            <span class="tempo-label">Tempo:</span>
+            <button class="tempo-btn" data-tempo="0.7">Slow</button>
+            <button class="tempo-btn active" data-tempo="1.0">Normal</button>
+            <button class="tempo-btn" data-tempo="1.4">Fast</button>
+          </div>
+          <div class="key-repeat-control">
+            <span class="tempo-label">Keys:</span>
+            <button class="key-repeat-btn active" data-keys="1">1</button>
+            <button class="key-repeat-btn" data-keys="3">3</button>
+            <button class="key-repeat-btn" data-keys="5">5</button>
+          </div>
+        </div>
+        <button id="guided-warmup-btn" class="guided-warmup-btn">
+          Full Guided Warmup
+          <span class="guided-sub">Sustained Tone → Scale → Arpeggio → Siren</span>
+        </button>
+        <div id="session-progress" class="session-progress hidden"></div>
         <div id="exercise-cards" class="exercise-grid"></div>
         <button id="back-to-setup-btn" class="secondary-btn">
           Change Voice Type
@@ -94,6 +117,7 @@
       <div id="active-exercise-screen" class="screen hidden">
         <h2 id="exercise-title"></h2>
         <p id="exercise-description-active" class="exercise-desc"></p>
+        <div id="round-indicator" class="round-indicator hidden"></div>
 
         <div class="live-display">
           <div class="note-column">
@@ -115,6 +139,10 @@
           </div>
         </div>
 
+        <div class="formant-chart-container">
+          <canvas id="formant-canvas" width="160" height="140"></canvas>
+        </div>
+
         <div class="volume-meter-container">
           <div class="volume-meter-track">
             <div id="volume-meter" class="volume-meter-fill"></div>
@@ -127,11 +155,16 @@
           <div id="countdown" class="countdown hidden">3</div>
         </div>
 
+        <div id="beat-indicator" class="beat-indicator"></div>
+
         <div class="progress-bar-container">
           <div id="exercise-progress" class="progress-bar"></div>
         </div>
 
         <div class="exercise-controls">
+          <button id="preview-melody-btn" class="secondary-btn">
+            Preview Melody
+          </button>
           <button id="play-reference-btn" class="secondary-btn">
             Reference Tone
           </button>
@@ -148,6 +181,7 @@
           <div id="rating-label" class="rating-label"></div>
           <p class="score-caption">on-pitch accuracy</p>
           <div id="vowel-score" class="vowel-score hidden"></div>
+        <div id="volume-shape-score" class="volume-shape-score hidden"></div>
         </div>
 
         <div id="results-graph-section" class="results-graph-section hidden">
@@ -176,6 +210,17 @@
       <div id="profile-screen" class="screen hidden">
         <h2>Practice History</h2>
 
+        <div class="streak-container">
+          <div id="streak-display" class="streak-display">
+            <span id="streak-count" class="streak-count">0</span>
+            <span class="streak-label">day streak</span>
+          </div>
+          <div class="streak-details">
+            <span id="total-sessions" class="streak-detail"></span>
+            <span id="today-sessions" class="streak-detail"></span>
+          </div>
+        </div>
+
         <div class="profile-graph-container">
           <h3>Performance Over Time</h3>
           <div class="timescale-buttons">
@@ -203,5 +248,10 @@
     </div>
 
     <script type="module" src="js/app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+      }
+    </script>
   </body>
 </html>

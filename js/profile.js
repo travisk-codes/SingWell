@@ -20,6 +20,7 @@ const EXERCISE_COLORS = {
   'vowel-clarity': '#f59e0b',
   'vowel-slides': '#06b6d4',
   'resonance-placement': '#ec4899',
+  'range-finder': '#a3e635',
 };
 
 export function saveExerciseResult({
@@ -325,6 +326,56 @@ export function renderHistoryList(container, { onDelete } = {}) {
 }
 
 /**
+ * Calculate and render practice streak info.
+ */
+export function renderStreakInfo() {
+  const history = getExerciseHistory();
+
+  // Total sessions
+  document.getElementById('total-sessions').textContent =
+    `${history.length} total sessions`;
+
+  // Today's sessions
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayCount = history.filter(
+    (e) => new Date(e.date).getTime() >= todayStart.getTime()
+  ).length;
+  document.getElementById('today-sessions').textContent =
+    `${todayCount} today`;
+
+  // Calculate streak: consecutive days with at least one session
+  if (history.length === 0) {
+    document.getElementById('streak-count').textContent = '0';
+    return;
+  }
+
+  // Get unique practice dates (YYYY-MM-DD)
+  const practiceDates = new Set();
+  for (const entry of history) {
+    const d = new Date(entry.date);
+    practiceDates.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+  }
+
+  // Count streak backwards from today
+  let streak = 0;
+  const now = new Date();
+  const checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  while (true) {
+    const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
+    if (practiceDates.has(key)) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  document.getElementById('streak-count').textContent = String(streak);
+}
+
+/**
  * Render running averages per exercise across multiple timescales.
  */
 const AVERAGES_TIMESCALES = [
@@ -413,4 +464,55 @@ export function renderRunningAverages(container) {
   }
 
   container.appendChild(table);
+
+  // Trend indicators per exercise
+  const trendContainer = document.createElement('div');
+  trendContainer.className = 'trend-indicators';
+
+  for (const exId of exerciseIds) {
+    const entries = history.filter((e) => e.exerciseId === exId);
+    if (entries.length < 3) continue;
+
+    const sorted = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const recent = sorted.slice(-5);
+    const older = sorted.slice(-10, -5);
+
+    if (older.length === 0 && recent.length < 3) continue;
+
+    const recentAvg = recent.reduce((s, e) => s + e.score, 0) / recent.length;
+
+    let trend, trendClass;
+    if (older.length > 0) {
+      const olderAvg = older.reduce((s, e) => s + e.score, 0) / older.length;
+      const diff = recentAvg - olderAvg;
+      if (diff > 5) { trend = '↑ improving'; trendClass = 'trend-up'; }
+      else if (diff < -5) { trend = '↓ declining'; trendClass = 'trend-down'; }
+      else { trend = '→ stable'; trendClass = 'trend-stable'; }
+    } else {
+      // Only recent data — compare first vs last
+      const first = recent[0].score;
+      const last = recent[recent.length - 1].score;
+      const diff = last - first;
+      if (diff > 5) { trend = '↑ improving'; trendClass = 'trend-up'; }
+      else if (diff < -5) { trend = '↓ declining'; trendClass = 'trend-down'; }
+      else { trend = '→ stable'; trendClass = 'trend-stable'; }
+    }
+
+    const color = EXERCISE_COLORS[exId] || '#888';
+    const item = document.createElement('div');
+    item.className = 'trend-item';
+    item.innerHTML = `
+      <span class="trend-exercise" style="color: ${color}">${exerciseNames[exId]}</span>
+      <span class="trend-direction ${trendClass}">${trend}</span>
+    `;
+    trendContainer.appendChild(item);
+  }
+
+  if (trendContainer.children.length > 0) {
+    const trendHeader = document.createElement('h4');
+    trendHeader.className = 'trend-header';
+    trendHeader.textContent = 'Trends (last 5 vs previous 5)';
+    container.appendChild(trendHeader);
+    container.appendChild(trendContainer);
+  }
 }
